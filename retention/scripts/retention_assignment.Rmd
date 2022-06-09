@@ -1,0 +1,543 @@
+---
+title: 'Assignment: Employee Retention'
+author: "Dunja Novaković"
+date: '2021-07-31'
+output:
+  pdf_document: default
+  word_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+## Instructions
+
+This assignment reviews the *Employee Retention* analytical lecture. 
+You will use the *retention.Rmd* file I reviewed in the video lectures to complete this assignment. 
+You will *copy and paste* relevant code from that file and update it to answer the questions in this assignment. 
+You will respond to questions in each section after executing relevant code to answer a question. 
+You will submit this assignment to its *Submissions* folder on *D2L*.
+You will submit this *(1)* completed **R Markdown** script and *(2)* a _PDF_, _Word_, or _HTML_ rendered version of it to _D2L_ by the due date and time.
+As a first option, if you installed `TinyTeX` successfully, then I prefer a *PDF* version.
+As a second option, if you have *Microsoft Word*, then I prefer a *Word* version.
+As a third option, you can knit to *HTML*.
+The first two options work better with *D2L*.
+
+To start:
+
+For any analytical project, you want to create a clear project directory structure.  
+All materials from this course should exist in one folder on your computer.
+Inside of that main course folder, you should create folders to store course documentation, lecture analytical projects, assignments analytical projects, etc. 
+Inside of your folder for assignments analytical projects, you should create folder for this assignment named *retention*.
+
+Any analytical project folder should contain inside it at least three additional folders named *scripts*, *data*, and *plots*.
+Store this script in the *scripts* folder, the data for this assignment in the *data* folder, and any requested plots in the *plots* folder.
+Each analytical project should also contain a **.Rproj** file in its top-level directory. 
+Go to the *File* menu in *RStudio*, select *New Project...*, choose *Existing Directory*, go to the folder you created to contain this analytical project. 
+Select it as the top-level directory for this **RStudio Project**.  
+
+## Global Settings
+
+The first code chunk sets the global settings for the remaining code chunks in the document.
+Do *not* change anything in this code chunk.
+
+```{r, setup, include=FALSE}
+### specify echo setting for all code chunks
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+
+In this code chunk, we load packages we need for this assignment:
+
+1. **here**,
+2. **tidyverse**,
+3. **skimr**,
+4. **broom**, and
+5. **interactions**.
+
+We will use functions from these packages to import the data, examine the data, calculate summaries on the data, build logistic regression models, and create visualizations from the data. 
+Do *not* change anything in this code chunk.
+
+```{r, libraries}
+### load libaries for use in current working session
+## here for workflow
+library(here)
+
+## tidyverse for data manipulation and plotting
+# loads eight different libraries simultaneously
+library(tidyverse)
+
+## skimr for summary statistics
+library(skimr)
+
+## broom to work with model objects
+library(broom) 
+
+## interactions to make 2D plots to capture interaction effects
+library(interactions) 
+```
+
+## Task 1: Load and Clean Data
+
+Load the **retention.rds** data file with the correct functions.
+Save the imported data as the data object: **reten_data**.
+Use **glimpse** on the data.
+
+**Question 1.1**: How many variables and observations are there in the data?  
+
+**Response 1.1**: *1650 observations and 8 variables*.
+
+Convert **BossGender**, **Gender**, **Country**, and **LeaverStatus** to factor variables and assign the correct factor levels to each of them.
+Rename **BossGender** and **Gender** to **Boss Gender** and **Emp. Gender**, respectively.
+Save all changes to **reten_data**.
+Print the updated data object such that you arrange it by descending **Age**.
+
+**Question 1.2**: What is the age of the oldest employees in the data?  
+
+**Response 1.2**: *66*.
+
+```{r, task1}
+#### Q1.1
+### load data via the readRDS and here functions
+reten_data <- readRDS(here("data", "retention.rds"))
+
+### examine sampled data
+## using glimpse()
+glimpse(reten_data)
+
+#### Q1.2
+### mutate variables
+## overwrite data
+reten_data <- reten_data %>%
+  ## change vars to factors
+  mutate_at(vars(BossGender, Gender, Country, LeaverStatus), ~ as_factor(.)) %>%
+  ## assign gender levels
+  mutate_at(vars(BossGender, Gender), ~ fct_recode(., `Female` = "0", `Male` = "1")) %>%
+  ## change Country and LeaverStatus
+         # LeaverStatus
+  mutate(LeaverStatus = fct_recode(LeaverStatus, `Stayer` = "0", `Leaver` = "1"),
+         # Country
+         Country = fct_recode(Country, `Belgium` = "1", `Sweden` = "2", `Italy` = "3",
+                              `France` = "4", `Poland` = "5", `Mexico` = "6", `Spain` = "7", 
+                              `UK` = "8", `USA` = "9", `Australia` = "10")) %>%
+  ## rename variables for plotting aesthetics
+  rename(`Boss Gender` = BossGender, `Emp. Gender` = Gender)
+
+## print to view results
+reten_data %>%
+  arrange(desc(Age))
+
+
+```
+
+## Task 2: Examine Data
+
+Summarize the data with **skim_without_charts()** while grouping by **LeaverStatus**.
+
+**Question 2.1**: What is the difference in the average *appraisal rating* between *stayers* and *leavers*?  
+
+**Response 2.1**: *5.54-5.38=0.16*.
+
+Produce a density plot for **AppraisalRating** filled by **LeaverStatus**.
+Facet the plot such that rows represent **Emp. Gender** and columns represent **Boss Gender**.
+Note the faceting differs from the lecture script.
+Appropriately label the aesthetics.
+Beautify the facet grid labels as well.
+
+**Question 2.2**: Is there a mean difference between *stayers* and *leavers* on *appraisal ratings* for any combination of *boss* and *employee gender*?  
+
+**Response 2.2**: *There is a mean difference between stayers and leavers on appraisal ratings for male employees with male bosses*.
+
+In one chained command, produce a horizontal bar plot showing the percentage of *leavers* and *stayers* for each combination of *boss* and *employee gender*.
+Call **reten_data** and group by **Boss Gender**, **Emp. Gender**, and **LeaverStatus** in that order.
+Count the number of cases who compose those eight groups.
+Then, group by only **Boss Gender** and **Emp. Gender** and compute the percentage of *stayers* and *leavers* for each combination of *boss* and *employee gender*.
+Name the computed percentage variable: **pct**.
+Create a **ggplot** with the x-axis representing percentage of *stayers* and *leavers*, the y-axis representing the *female and male bosses*, facets representing *female and male employees*, and filling the bars by *stayers* and *leavers*.  
+In the aesthetics, order **Boss Gender** by **LeaverStatus** and **pct**.
+You will need to call **facet_wrap** to facet by **Emp. Gender**.
+Use **labeller = label_both** inside of **facet_wrap** to clearly indicate the facets represent employee gender.
+Make sure to include a text geometry to label the percentage of *stayers* and *leavers* for each combination of *employee* and *boss gender*.
+
+**Question 2.3**: Which combination of *employee* and *boss gender* has the highest percentage of *stayers*?  
+Which combination of *employee* and *boss gender* has the highest percentage of *leavers*?  
+
+**Response 2.3**: *The group consisted of male employees with male bosses has the highest percentage of stayers. The group consisted of female employees with female bosses has the highest percentage of leavers*.
+
+```{r, task2}
+#### Q2.1
+### summarize by LeaverStatus
+## call data
+reten_data %>%
+  ## group by LeaverStatus
+  group_by(LeaverStatus) %>%
+  ## summarize
+  skim_without_charts()
+
+#### Q2.2
+### distributions
+## call data and set aesthetics
+ggplot(reten_data, aes(x = AppraisalRating, fill = LeaverStatus)) +
+  ## density geometry
+  geom_density(alpha = 0.5) +
+  ## facet by boss and employee gender
+  facet_grid(`Emp. Gender` ~ `Boss Gender`, labeller = label_both) +
+  ## aesthetic labels
+  labs(x = "Appraisal Rating", y = "Density", fill = "Status") +
+  ## change aesthetics of gender labels
+  theme(
+    # change employee gender
+    strip.text.x = element_text(
+      color = "red", face = "bold"
+    ),
+    # change boss gender
+    strip.text.y = element_text(
+      color = "blue", face = "bold"
+    ),
+    # change background
+    strip.background = element_rect(
+      color = "black", fill = "grey90"
+    )
+  )
+
+#### Q2.3
+### bar plot
+## call data
+reten_data %>%
+  ## group by Boss Gender, Emp. Gender and LeaverStatus
+  group_by(`Boss Gender`, `Emp. Gender`, LeaverStatus) %>%
+  ## count
+  count() %>%
+  ## group by Boss Gender, Emp. Gender
+  group_by(`Boss Gender`, `Emp. Gender`) %>%
+  ## calculate percentage
+  mutate(pct = round(n/sum(n), digits = 3)) %>%
+  ## call plot
+  ggplot(aes(x =  fct_rev(fct_reorder2(`Boss Gender`, LeaverStatus, pct)), 
+             y = pct, fill = LeaverStatus)) + facet_wrap(~`Emp. Gender`, labeller = label_both)+
+    ## bar geometry
+    geom_bar(position = "fill", stat = "identity") +
+    ## text geometry
+    geom_text(aes(label = paste0(pct*100, "%")), size = 3,
+            position = position_stack(vjust = 0.5), color = "white") +
+    ## y-axis
+    scale_y_continuous(labels = scales::percent_format()) +
+    ## aesthetic labels
+    labs(x = "Boss Gender", y = "Percentage", fill = "Status") +
+    ## flip coordinates
+    coord_flip()
+
+```
+
+## Task 3: Simple Logistic Regression
+
+Estimate a simple logistic regression where *appraisal rating* predicts *employee retention* using the correct variables.
+Name the model: **mod_1**.
+Examine the levels and contrats for *employee retention* if needed.
+
+**Question 3.1**: How do you correctly interpret the logit regression coefficient for *appraisal rating*?
+
+**Response 3.1**: *For a one unit increase in appraisal rating, the log odds of an employee leaving (versus not-leaving) decreases by 0.1063*.
+
+Calculate the *logit*, *odds ratio*, and *probability* predictions from **mod_1** and save them to **reten_data**.
+Select the relevant variables from **reten_data** and arrange it by ascending *appraisal rating*.
+
+**Question 3.2**: What is the *highest probability* of someone leaving in this data based on **mod_1**?
+What is the predicted *probability of leaving* for the individual with an *appraisal rating* equal to 1.64?
+
+**Response 3.2**: *0.183. 0.179*.
+
+Produce a **ggplot** that represents **mod_1**.
+Label the axes appropriately.
+
+**Question 3.3**: Do higher values of *appraisal rating* associate with a greater or lower probability of an employee leaving?
+
+**Response 3.3**: *Higher values of appraisal rating associate with a lower probability of an employee leaving*.
+
+```{r, task3}
+#### Q3.1
+### examine categorical outcome
+## contrasts
+contrasts(reten_data$LeaverStatus)
+
+### estimate simple logistic regression model
+mod_1 <- glm(LeaverStatus ~ AppraisalRating, family = "binomial", data = reten_data)
+
+## examine summary
+summary(mod_1)
+
+#### Q3.2
+### predictions
+## call data
+reten_data <- reten_data %>%
+         ## probability predictions
+  mutate(mod_1_prob = fitted(mod_1),
+         ## odds ratio predictions
+         mod_1_or = exp(predict(mod_1)),
+         ## logit predictions
+         mod_1_log = predict(mod_1)
+        )
+
+### examine predictions
+## call data
+reten_data %>%
+  ## select variables
+  select(AppraisalRating, LeaverStatus, mod_1_prob:mod_1_log) %>%
+  ## arrange
+  arrange(AppraisalRating)
+
+#### Q3.3
+### Plot
+## Choose data and mapping
+ggplot(reten_data, aes(x = AppraisalRating, y = as.numeric(LeaverStatus) - 1)) +
+  ## Point geometry
+  geom_point(alpha = 0.5) +
+  ## Smooth geometry
+  geom_smooth(method = "glm", se = TRUE, 
+              method.args = list(family = "binomial")) +
+  ## Axes labels
+  labs(x = "Appraisal Rating", y = "Probability of Leaving")
+
+
+```
+
+## Task 4: Multiple Logistic Regression
+
+Estimate a multiple logistic regression where *appraisal rating*, *career satisfaction*, *age*, and *employee gender* predict *employee retention* using the correct variables.
+Name the model: **mod_2**.
+Examine the levels and contrasts for *employee gender* and cross-tabs between *employee gender* and *retention* if needed.
+
+**Question 4.1**: How do you correctly interpret the *logit regression coefficient* for *career satisfaction*?
+What is the *odds ratio regression coefficient* for *career satisfaction*?
+
+**Response 4.1**: *For a one unit increase in career satisfaction, the log odds of an employee leaving (versus not-leaving) decreases by 0.43492, holding the other predictors constant. The odds ratio regression coefficient for career satisfaction is 0.6473188*.
+
+Calculate the *logit*, *odds ratio*, and *probability* predictions from **mod_2** and save them to **reten_data**.
+Select the relevant variables from **reten_data** and arrange it by *descending predicted probability*.
+
+**Question 4.2**: What is the *highest probability* of someone leaving in this data based on **mod_2**?
+What is the predicted *odds ratio of leaving to not leaving* for the fourth individual in the list?
+
+**Response 4.2**: *0.451. 0.757*.
+
+Compute the number of *true* and *false positives* and *true* and *false negatives* based on **mod_2** and using a *0.25* probability threshold.
+Compute the relevant accuracy metrics for **mod_2** and this *0.25* probability threshold.
+
+**Question 4.3**: How well does **mod_2** do at predicting who will leave the organization at a *0.25* probability threshold?
+What accuracy metric are you using to base your conclusion?
+
+**Response 4.3**: *The model does not successfully predict who will leave the organization. The model can accurately distinguish true positives from false positives in only 29.2% of cases (as indicated by positive accuracy). In addition, the model successfully distinguishes true positives from false negatives in only 16.7% of cases (as indicated by sensitivity)*.
+
+Create a new tibble named: **mod_2_pred_data** consisting of the four predictors in **mod_2**.
+The tibble should consist of *200* rows with all rows reflecting the average *age* and *appraisal rating* for the data, while *career satisfaction* from its minimum to its maximum value in the data should mix with *employee gender*.
+After initially creating **mod_2_pred_data**, apply **augment()** to it to calculate the *probability of leaving* for each row and the respective (95%) lower and upper boundary of each prediction.
+Produce a **ggplot** to with *career satisfaction* on the x-axis and the *probability of leaving* on the y-axis, separate lines for *employee gender*, and a ribbon to represent the upper and lower boundaries of prediction for each line.
+
+**Question 4.4**: Is the difference in the *probability of leaving* for male and female employees greater for lower or higher *career satisfaction*?
+
+**Response 4.4**: *The difference in the probability of leaving for male and female employees is greater for lower career satisfaction levels*.
+
+```{r, task4}
+#### Q4.1
+### examine categorical predictors
+## contrasts
+# Emp. Gender
+contrasts(reten_data$`Emp. Gender`)
+
+## cross-tabulations
+# retention and country
+xtabs(~ LeaverStatus + `Emp. Gender`, data = reten_data)
+
+### estimate multiple logistic regression model
+mod_2 <- glm(LeaverStatus ~ AppraisalRating + CareerSat +
+               Age + `Emp. Gender`, 
+             family = "binomial", data = reten_data)
+
+## examine results
+summary(mod_2)
+
+## convert logit regression coefficients to odds ratios regression coefficients
+exp(coef(mod_2))
+
+#### Q4.2
+### predictions
+## call data
+reten_data <- reten_data %>%
+         ## probability predictions
+  mutate(mod_2_prob = fitted(mod_2),
+         ## odds ratio predictions
+         mod_2_or = exp(predict(mod_2)),
+         ## logit predictions
+         mod_2_log = predict(mod_2)
+        )
+
+### examine predictions
+## call data
+reten_data %>%
+  ## select variables
+  select(AppraisalRating, CareerSat, Age, 
+         `Emp. Gender`, LeaverStatus, 
+         mod_2_prob:mod_2_log) %>%
+  ## arrange
+  arrange(desc(mod_2_prob)) %>%
+  ## print
+  print(width = Inf)
+
+#### Q4.3
+### accuracy of predictions
+## name result and choose data
+acc_mod_2 <- reten_data %>%
+  ## summarize
+            # true positives
+  summarize(tp = sum(mod_2_prob >= 0.25 & LeaverStatus == "Leaver"),
+            # true negatives
+            tn = sum(mod_2_prob < 0.25 & LeaverStatus == "Stayer"),
+            # false positives
+            fp = sum(mod_2_prob >= 0.25 & LeaverStatus == "Stayer"),
+            # false negatives
+            fn = sum(mod_2_prob < 0.25 & LeaverStatus == "Leaver"))
+## accuracy computations
+acc_mod_2 %>%
+  ## summarize
+            # overall accuracy
+  summarize(overall = (tp + tn)/(tp + tn + fp + fn),
+            # positive accuracy
+            positive = tp/(tp + fp),
+            # negative accuracy
+            negative = tn/(tn + fn),
+            # sensitivity
+            sensitivity = tp/(tp + fn),
+            # specificity
+            specificity = tn/(tn + fp))
+
+#### Q4.4
+### create new data for prediction
+## name new data object
+mod_2_pred_data <- with(reten_data,
+  ## create data frame
+  tibble(
+    # mean of appraisal rating
+    AppraisalRating = mean(AppraisalRating),
+    # mean of age
+    Age = mean(Age),
+    # set career satisfaction
+    CareerSat = rep(seq(min(CareerSat), max(CareerSat), length.out = 100), 2),
+    # set employee gender
+    `Emp. Gender` = factor(rep(c("Female", "Male"), each = 100))
+  ))
+
+### calculate probability bands
+## overwrite data
+mod_2_pred_data <- augment(mod_2, newdata = mod_2_pred_data, se_fit = TRUE) %>%
+         ## Calculate probability
+  mutate(prob = plogis(.fitted),
+         # Calculate lower band probability
+         prob_lower = plogis(.fitted - 1.96*.se.fit), 
+         # Calculate upper band probability
+         prob_upper = plogis(.fitted + 1.96*.se.fit))
+
+### plot
+## choose data and mapping
+ggplot(mod_2_pred_data, aes(x = CareerSat, y = prob)) +
+  ## ribbon geometry for bands
+  geom_ribbon(aes(ymin = prob_lower, ymax = prob_upper, fill = `Emp. Gender`), 
+              alpha = 0.2) + 
+  ## line geometry for predictions
+  geom_line(aes(color = `Emp. Gender`), size = 2) +
+  ## axes labels
+  labs(x = "Career Satisfaction", y = "Probability of Leaving")
+
+
+```
+
+## Task 5: Moderated Logistic Regression
+
+Estimate a moderated logistic regression where *appraisal rating*, *career satisfaction*, and their interaction predict *employee retention* using the correct variables.
+Name the model: **mod_3**.
+Make sure to mean center *appraisal rating* and *career satisfaction* before estimating the model.
+
+**Question 5.1**: What is the estimate of the interaction effect of *career satisfaction* and *appraisal rating* on *employee retention*?
+
+**Response 5.1**: *0.14251*.
+
+Use **interact_plot** to visualize the interaction effect from **mod_3**.
+Use **sim_slopes** to calculate the simple slopes.
+
+**Question 5.2**: For individuals with low levels of *appraisal rating*, do individuals with low or high levels of *career satisfaction* have a higher *probability of leaving*?
+What is the simple slope estimate between *appraisal rating* and *employee retention* for an individual who is one standard deviation above the mean on *career satisfaction*?
+
+**Response 5.2**: *Individuals with low levels of career satisfaction have a higher probability of leaving for low levels of appraisal ratings. Simple slope estimate:  0.13*.
+
+Calculate the *logit*, *odds ratio*, and *probability* predictions from **mod_3** and save them to **reten_data**.
+Select the relevant variables from **reten_data** and arrange it by *descending predicted probability*.
+
+**Question 5.3**: What is the *highest probability* of someone leaving in this data based on **mod_3**?
+What is the predicted *logit* for the fourth individual in the list?
+
+**Response 5.3**: *0.506. -0.292*.
+
+```{r, task5}
+#### Q5.1
+### create centered variables
+## overwrite data
+reten_data <- reten_data %>%
+  ## center variables
+  mutate_at(vars(AppraisalRating, CareerSat), list(cent = ~ . - mean(.))) 
+
+### estimate moderated logistic regression model
+mod_3 <- glm(LeaverStatus ~ AppraisalRating_cent * CareerSat_cent, 
+             family = "binomial", data = reten_data)
+
+## examine results
+summary(mod_3)
+
+#### Q5.2
+### visualize interaction
+## call plot and model
+interact_plot(mod_3, 
+  # x-axis variable            
+  pred = AppraisalRating_cent, 
+  # moderator variable
+  modx = CareerSat_cent,
+  # x-axis label
+  x.label = "Appraisal Rating",
+  # y-axis label
+  y.label = "Probability of Leaving",
+  # legend label
+  legend.main = "Career Sat.")
+
+## simple slopes
+sim_slopes(mod_3, 
+  # x-axis variable            
+  pred = AppraisalRating_cent, 
+  # moderator variable
+  modx = CareerSat_cent)
+
+#### Q5.3
+### predictions
+## call data
+reten_data <- reten_data %>%
+         ## probability predictions
+  mutate(mod_3_prob = fitted(mod_3),
+         ## odds ratio predictions
+         mod_3_or = exp(predict(mod_3)),
+         ## logit predictions
+         mod_3_log = predict(mod_3)
+        )
+
+### examine predictions
+## call data
+reten_data %>%
+  ## select variables
+  select(CareerSat_cent, AppraisalRating_cent, LeaverStatus, 
+         mod_3_prob:mod_3_log) %>%
+  ## arrange
+  arrange(desc(mod_3_prob)) %>%
+  ## print
+  print(width = Inf)
+
+
+```

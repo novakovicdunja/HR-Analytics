@@ -1,0 +1,668 @@
+---
+title: "Assignment: Supervised Learning"
+author: "Dunja Novaković"
+date: "2021-08-01"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Instructions
+
+This assignment reviews the *Supervised Learning* analytical lecture. 
+You will use the *supervised_learning.Rmd* file I reviewed in the video lectures to complete this assignment. 
+You will *copy and paste* relevant code from that file and update it to answer the questions in this assignment. 
+You will respond to questions in each section after executing relevant code to answer a question. 
+You will submit this assignment to its *Submissions* folder on *D2L*.
+You will submit this *(1)* completed **R Markdown** script and *(2)* a _PDF_, _Word_, or _HTML_ rendered version of it to _D2L_ by the due date and time.
+As a first option, if you installed `TinyTeX` successfully, then I prefer a *PDF* version.
+As a second option, if you have *Microsoft Word*, then I prefer a *Word* version.
+As a third option, you can knit to *HTML*.
+The first two options work better with *D2L*.
+
+To start:
+
+For any analytical project, you want to create a clear project directory structure.  
+All materials from this course should exist in one folder on your computer.
+Inside of that main course folder, you should create folders to store course documentation, lecture analytical projects, assignments analytical projects, etc. 
+Inside of your folder for assignments analytical projects, you should create folder for this assignment named *supervised_learning*.
+
+Any analytical project folder should contain inside it at least three additional folders named *scripts*, *data*, and *plots*.
+Store this script in the *scripts* folder, the data for this assignment in the *data* folder, and any requested plots in the *plots* folder.
+Each analytical project should also contain a **.Rproj** file in its top-level directory. 
+Go to the *File* menu in *RStudio*, select *New Project...*, choose *Existing Directory*, go to the folder you created to contain this analytical project. 
+Select it as the top-level directory for this **RStudio Project**.  
+
+## Global Settings
+
+The first code chunk sets the global settings for the remaining code chunks in the document.
+Do *not* change anything in this code chunk.
+
+```{r, setup, include=FALSE}
+### specify echo setting for all code chunks
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+
+In this code chunk, we load packages we need for this assignment:
+
+1. **here**,
+2. **tidyverse**,
+3. **skimr**,
+4. **rpart**,
+5. **rattle**, 
+6. **randomForest**,
+7. **gbm**, and
+8. **caret**.
+
+We will use functions from these packages to import the data, examine the data, calculate summaries on the data, build logistic regression models, and create visualizations from the data. 
+Do *not* change anything in this code chunk.
+
+```{r, libraries}
+### load libaries for use in current working session
+## here for workflow
+library(here)
+
+## tidyverse for data manipulation and plotting
+# loads eight different libraries simultaneously
+library(tidyverse)
+
+## skimr for summary statistics
+library(skimr)
+
+## rpart to build single decision trees
+library(rpart)
+
+## rattle to plot decision trees
+library(rattle)
+
+## randomForest for random forests
+library(randomForest)
+
+## gbm for generalized boosted models
+library(gbm)
+
+## caret for supervised learning
+library(caret)
+```
+
+## Task 1: Load, Clean, and Examine Data
+
+Load the **emp_job_info.rdata** data file with the correct functions.
+Left join **emp_job_info_1_full** and **emp_job_info_2_full** by **emp_id**.
+Name the joined data: **emp_data**.
+Remove all other objects from your global environment (i.e., keep **emp_data** but remove the other four data objects).
+Clean the data like in the analytical lecture.
+Run **skim_without_charts()** on **left** and **last_evaluation** in  **emp_data** while grouping by **department**.
+
+**Question 1.1**: How many employees left and remain in the **technical** department? 
+What is the average evaluation of employees in the **marketing** department?
+
+**Response 1.1**: *Remain: 2023, Left: 697. Avg. evaluation: 71.6*.
+
+Produce a density plot of **last_evaluation** filled by **left**.
+Use a facet wrap for **department**.
+Label the axes and fill appropriately.
+
+**Question 1.2**: What do you notice about the density curves for those who left versus those who remain regardless of department?  
+
+**Response 1.2**: *Density curves for those who left have a dip for evaluation scores between 60 and 80, regardless of department*.
+
+Produce a horizontal bar plot with **department** represented on the y-axis and percentage of employees in each **salary** category filling the bars.
+You will need to group **emp_data** by **department** and **salary** first and count the number of employees in combination of those groups.
+Then, you will need to group just by **department** to calculate the percentage of employees in each department at each salary level.
+Then, you will pass this data into **ggplot**.
+The y-axis should represent **department** and x-axis should represent percentage of employees.
+Use **coord_flip** to appropriately create the horizontal bar plot.
+
+**Question 1.3**: Does **IT** have more employees with a **low** or **medium** salary? 
+Which department has the highest percentage of highly-paid employees?
+
+**Response 1.3**: *IT has more employees with a low salary. Management has the highest percentage of highly-paid employees*.
+
+```{r, task1}
+#### Q1.1
+### load data via the load and here functions
+load(here("data", "emp_job_info.rdata"))
+
+### join data tables
+## create joined data table
+emp_data <- emp_job_info_1_full %>%
+  ## left join first and second data tables
+  left_join(emp_job_info_2_full, by = "emp_id")
+
+## clean global environment
+# remove unnecessary data tables 
+rm(emp_job_info_1_full, emp_job_info_2_full, 
+   emp_job_info_1_samp, emp_job_info_2_samp)
+
+### clean data 
+emp_data <- emp_data %>%
+  ## change particular variables to factors
+  mutate_at(vars(department, salary, promotion_last_5_years, 
+                 work_accident, left), as_factor) %>%
+  ## assign levels of particular factors
+  mutate_at(vars(promotion_last_5_years, work_accident, left), 
+            ~ fct_recode(., `No` = "0", `Yes` = "1")) %>%
+  ## rescale outcomes
+  mutate_at(vars(job_sat, last_evaluation), ~ 100*.)
+
+### explore data
+## call data
+emp_data %>%
+  ## group by department and salary
+  group_by(department) %>%
+  ## remove id variable
+  select(left, last_evaluation) %>%
+  ## summarize
+  skim_without_charts()
+
+#### Q1.2
+### plot data
+## density distributions for performance
+# call data and set aesthetics
+ggplot(emp_data, aes(x = last_evaluation, fill = left)) +
+  # density geometry
+  geom_density(alpha = 0.5) +
+  # facet by boss and employee gender
+  facet_wrap(~ department, nrow=2) +
+  # aesthetic labels
+  labs(x = "Last Evaluation", y = "Density", fill = "Left") 
+
+#### Q1.3
+## bar plots for salary
+# call data
+emp_data %>%
+  ## group by two variables
+  group_by(department, salary) %>%
+  ## count
+  count() %>%
+  ## group by one variable
+  group_by(department) %>%
+  ## calculate percentage
+  mutate(pct = round(n/sum(n), digits = 3)) %>%
+  ## call plot
+  ggplot(aes(x = fct_rev(fct_reorder2(department, salary, pct)), 
+             y = pct, fill = salary)) +
+    ## bar geometry
+    geom_bar(position = "fill", stat = "identity") +
+    ## text geometry
+    geom_text(aes(label = paste0(pct*100, "%")), size = 3,
+            position = position_stack(vjust = 0.5), color = "white") +
+    ## y-axis
+    scale_y_continuous(labels = scales::percent_format()) +
+    ## aesthetic labels
+    labs(x = "Department", y = "Percentage", fill = "Salary") +
+    ## flip coordinates
+    coord_flip()
+
+
+```
+
+## Task 2: Single Decision Trees
+
+Set the random seed to *301*.  
+Create a training and test data set such that the training data set consists of *65%* of the full sample and the testing data set consists of the other *35%* of the full sample.
+Name the training and testing data sets **emp_train** and **emp_test**, respectively.
+Estimate a single decision tree model using **rpart** on the training data where all other variables except for **emp_id** predict **left**. 
+You can use this formula input inside of **rpart**: **left ~ . - emp_id**.
+Save the model as **mod_1_train**.
+Use **fancyRpartPlot** to plot the resulting tree, set **cex = 0.4**, and make sure your plotting window is large before you execute the code.
+Making the plotting window large before you execute the code will make it easier to read the tree.
+Apply **summary** to the model.
+
+**Question 2.1**: What is the prediction on **left** for an employee who has a job satisfaction greater than or equal to 47, a tenure greater than or equal to 4.5, and a last evaluation less than 82?
+Which variable is the most important predictor?
+
+**Response 2.1**: *The prediction is that the employee will not leave the company. The most important predictor is job_sat*.
+
+Calculate the *class* predictions on **left** in the testing data set.
+Save the *class* predictions as **mod_1_test_class**.
+Use **confusionMatrix()** to evaluate model accuracy.
+
+**Question 2.2**: What is the sensitivity accuracy? 
+What is the positive predictive value accuracy?
+
+**Response 2.2**: *Sensitivity accuracy: 0.9853. Positive predictive value accuracy: 0.9719*.
+
+Estimate a single decision tree model using **rpart** on the training data where all other variables except for **emp_id** predict **last_evaluation**. 
+You can use this formula input inside of **rpart**: **last_evaluation ~ . - emp_id**.
+Save the model as **mod_2_train**.
+Use **fancyRpartPlot** to plot the resulting tree, set **cex = 0.4**, and make sure your plotting window is large before you execute the code.
+Making the plotting window large before you execute the code will make it easier to read the tree.
+Apply **summary** to the model.
+
+**Question 2.3**: What is the prediction on **last_evaluation** for an employee who has completed greater than or equal to 2.5 projects and did not leave the company?
+Which variable is the most important predictor?
+
+**Response 2.3**: *Prediction: 72. The most important predictor is number_project*.
+
+Calculate the predictions of **last_evaluation** in the testing data set.
+Save the predictions as **mod_2_test_pred**.
+Use **postResample()** to evaluate model accuracy.
+
+**Question 2.4**: What is the root mean squared error?
+What is the R-squared?
+
+**Response 2.4**: *RMSE: 14.7029180. Rsquared: 0.2561656*.
+
+```{r, task2}
+#### Q2.1
+### training and testing data
+## set seed
+set.seed(301)
+
+## training data
+emp_train <- emp_data %>%
+  ## sample a fraction
+  sample_frac(0.65)
+
+## testing data
+emp_test <- emp_data %>%
+  ## find the difference between data
+  setdiff(emp_train)
+
+### estimate a single classification tree
+## training model
+mod_1_train <- rpart(left ~ . - emp_id, 
+                     data = emp_train)
+
+## plot
+fancyRpartPlot(mod_1_train, sub = NULL, type = 1, cex = 0.4)
+
+## summary
+summary(mod_1_train)
+
+#### Q2.2
+## testing model
+# class predictions
+mod_1_test_class <- predict(mod_1_train, newdata = emp_test, type = "class")
+
+### evaluate predictions
+## confusion matrix
+confusionMatrix(mod_1_test_class, emp_test$left)
+
+#### Q2.3
+### estimate a single regression tree
+## training model
+mod_2_train <- rpart(last_evaluation ~ . - emp_id, data = emp_train)
+
+## plot
+fancyRpartPlot(mod_2_train, sub = NULL, type = 1, cex = 0.4)
+
+## summary
+summary(mod_2_train)
+
+#### Q2.4
+## testing model
+# regression predictions
+mod_2_test_pred <- predict(mod_2_train, newdata = emp_test)
+
+## three measures with one function
+postResample(mod_2_test_pred, emp_test$last_evaluation)
+
+
+```
+
+## Task 3: Random Forest
+
+Estimate a random forest model using **randomForest** on the training data where all other variables except for **emp_id** predict **left**. 
+You can use this formula input inside of **randomForest**: **left ~ . - emp_id**.
+Save the model as **mod_3_train**.
+Print the variable importance calculations.
+
+**Question 3.1**: Which variable is most important?
+
+**Response 3.1**: *The most important variable is job_sat*.
+
+Calculate the *class* predictions on **left** in the testing data set.
+Save the *class* predictions as **mod_3_test_class**.
+Use **confusionMatrix()** to evaluate model accuracy.
+
+**Question 3.2**: What is the specificity accuracy? 
+What is the negative predictive value accuracy?
+
+**Response 3.2**: *Specificity accuracy: 0.9640. Negative predictive value accuracy: 0.9942*.
+
+Estimate a random forest model using **randomForest** on the training data where all other variables except for **emp_id** predict **last_evaluation**. 
+You can use this formula input inside of **randomForest**: **last_evaluation ~ . - emp_id**.
+Also add **ntree = 100** inside the **randomForest** function to reduce computation time.
+Save the model as **mod_4_train**.
+This model may take 1-3 minutes to run on your computer.
+Wait patiently.
+Print the variable importance calculations.
+
+**Question 3.3**: Which variable is the most important predictor?
+
+**Response 3.3**: *The most important predictor is avg_month_hours*.
+
+Calculate the predictions of **last_evaluation** in the testing data set.
+Save the predictions as **mod_4_test_pred**.
+Use **postResample()** to evaluate model accuracy.
+
+**Question 3.4**: What is the root mean squared error?
+What is the R-squared?
+
+**Response 3.4**: *RMSE: 13.6536229. RSquared:  0.3589448*.
+
+```{r, task3}
+#### Q3.1
+### estimate a random forest classification
+## training model
+mod_3_train <- randomForest(left ~ . - emp_id, 
+                            data = emp_train)
+
+## variable importance
+mod_3_train$importance
+
+#### Q3.2
+## testing model
+# class predictions
+mod_3_test_class <- predict(mod_3_train, newdata = emp_test)
+
+### evaluate predictions
+## confusion matrix
+confusionMatrix(mod_3_test_class, emp_test$left)
+
+#### Q3.3
+### estimate a random forest regression
+## training model
+mod_4_train <- randomForest(last_evaluation ~ . - emp_id, data = emp_train, ntree = 100)
+
+## variable importance
+mod_4_train$importance
+
+#### Q3.4
+## testing model
+# regression predictions
+mod_4_test_pred <- predict(mod_4_train, newdata = emp_test)
+
+### evaluate predictions
+## three measures with one function
+postResample(mod_4_test_pred, emp_test$last_evaluation)
+
+
+
+```
+
+## Task 4: Gradient Boosted Machine 
+
+Create a new variable inside of **emp_train** and **emp_test** named **left_num** just like in the analytical lecture.
+Estimate a gradient boosted machine using **gbm** on the training data where all other variables except for **emp_id** and **left** predict **left_num**. 
+You can use this formula input inside of **gbm**: **left_num ~ . - emp_id - left**.
+Note that you are predicting **left_num** without **left** in the model.
+Use *500* trees and the *bernoulli* distribution.
+Save the model as **mod_5_train**.
+Apply **summary** to the model.
+
+**Question 4.1**: Which variable is most important?
+
+**Response 4.1**: *The most important variable is job_sat*.
+
+Calculate the *class* predictions on **left_num** in the testing data set.
+Save the *class* predictions as **mod_5_test_class**.
+Use **confusionMatrix()** to evaluate model accuracy.
+
+**Question 4.2**: What is the specificity accuracy? 
+What is the negative predictive value accuracy?
+
+**Response 4.2**: *Specificity : 0.8855. Neg Pred Value : 0.9279*.
+
+Estimate a gradient boosted machine using **gbm** on the training data where all other variables except for **emp_id** and **left** predict **last_evaluation**. 
+You can use this formula input inside of **gbm**: **last_evaluation ~ . - emp_id - left**.
+Note that you are predicting **left_num** without **left** in the model.
+Use *500* trees.
+Save the model as **mod_6_train**.
+Apply **summary** to the model.
+
+**Question 4.3**: Which variable is the most important predictor?
+
+**Response 4.3**: *The most important predictor is number_project*.
+
+Calculate the predictions of **last_evaluation** in the testing data set.
+Save the predictions as **mod_6_test_pred**.
+Use **postResample()** to evaluate model accuracy.
+
+**Question 4.4**: What is the root mean squared error?
+What is the R-squared?
+
+**Response 4.4**: *RMSE: 14.6095396. Rsquared: 0.2657993*.
+
+```{r, task4}
+#### Q4.1
+### adjust categorical outcome
+## training data
+emp_train <- emp_train %>%
+  ## create new variable
+  mutate(left_num = as.numeric(left) - 1)
+
+## testing data
+emp_test <- emp_test %>%
+    ## create new variable
+  mutate(left_num = as.numeric(left) - 1)
+
+### estimate a gradient boosted machine classification
+## training model
+mod_5_train <- gbm(left_num ~ . - emp_id - left, 
+                   # specify data and distribution
+                   data = emp_train, distribution = "bernoulli",
+                   # specify number of trees
+                   n.trees = 500)
+
+## summary
+summary(mod_5_train)
+
+#### Q4.2
+## testing model
+# probability predictions
+mod_5_test_pred <- predict(mod_5_train, newdata = emp_test, n.trees = 500, 
+                           type = "response")
+
+# class predictions
+mod_5_test_class <- as.factor(if_else(mod_5_test_pred < 0.5, "No", "Yes"))
+
+### evaluate predictions
+## confusion matrix
+confusionMatrix(mod_5_test_class, emp_test$left)
+
+
+#### Q4.3
+### estimate a single regression tree
+## training model
+mod_6_train <- gbm(last_evaluation ~ . - emp_id - left, 
+                   # specify data and distribution
+                   data = emp_train, distribution = "gaussian",
+                   # specify number of trees
+                   n.trees = 500)
+
+## summary
+summary(mod_6_train)
+
+#### Q4.4
+## testing model
+# regression predictions
+mod_6_test_pred <- predict(mod_6_train, newdata = emp_test, n.trees = 500)
+
+### evaluate predictions
+## three measures with one function
+postResample(mod_6_test_pred, emp_test$last_evaluation)
+
+
+```
+
+## Task 5: Prediction Plots
+
+Create a new *tibble* data object named **last_eval_preds**.
+Name the first column **last_evaluation** and set it equal to **emp_test$last_evaluation**.
+Name the second column **dt_preds** and set it equal to **mod_2_test_pred**.
+Name the third column **rf_preds** and set it equal to **mod_4_test_pred**.
+Name the fourth column **gbm_preds** and set it equal to **mod_6_test_pred**.
+
+Produce three scatterplots using **ggplot()**.
+Set the data to **last_eval_preds**.
+Map **dt_preds**, **rf_preds**, and **gbm_preds**, respectively, to the x-axis in the three separate scatterplots.
+Map **last_evaluation** to the y-axis.
+Add the point geometry.
+Add the smooth geometry with **method** set to **lm**, **se** set to **FALSE**, and **color** set to **green**.
+Add appropriate axes labels and plot title.
+
+**Question 5.1**: From which two algorithms do the predictions look the most similar?
+
+**Response 5.1**: *Random forest and Gradient Boosted Machine*.
+
+```{r, task5}
+#### Q5.1
+### create data object with observed and predicted values
+## name data
+last_eval_preds <- tibble(
+  ## observed values of last_eval
+  last_evaluation = emp_test$last_evaluation,
+  ## decision tree predicted values
+  dt_preds = mod_2_test_pred,
+  ## random forest predicted values
+  rf_preds = mod_4_test_pred,
+  ## gradient boosted machine predicted values
+  gbm_preds = mod_6_test_pred,
+)
+
+### plot decision tree predictions
+## call data and mapping
+ggplot(last_eval_preds, aes(x = dt_preds, y = last_evaluation)) +
+  ## point geometry
+  geom_point(alpha = 0.5) +
+  ## smooth geometry
+  geom_smooth(method = "lm", se = FALSE, color = "green") +
+  ## labs
+  labs(x = "Predicted Last Evaluation", y = "Observed Last Evaluation") +
+  ## title
+  ggtitle("Decision Tree Predictions")
+
+### plot random forest predictions
+## call data and mapping
+ggplot(last_eval_preds, aes(x = rf_preds, y = last_evaluation)) +
+  ## point geometry
+  geom_point(alpha = 0.5) +
+  ## smooth geometry
+  geom_smooth(method = "lm", se = FALSE, color = "green") +
+  ## labs
+  labs(x = "Predicted Last Evaluation", y = "Observed Last Evaluation") +
+  ## title
+  ggtitle("Random Forest Predictions")
+
+### plot gbm predictions
+## call data and mapping
+ggplot(last_eval_preds, aes(x = gbm_preds, y = last_evaluation)) +
+  ## point geometry
+  geom_point(alpha = 0.5) +
+  ## smooth geometry
+  geom_smooth(method = "lm", se = FALSE, color = "green") +
+  ## labs
+  labs(x = "Predicted Last Evaluation", y = "Observed Last Evaluation") +
+  ## title
+  ggtitle("Gradient Boosted Machine Predictions")
+
+
+```
+
+## Task 6: Supervised Learning Meta-Engine
+
+Use the `caret` work flow to predict **last_evaluation** from all predictors except **emp_id** and **left_num** in the **emp_train** data using **lm** (i.e., ordinary least-squares regression), **rpart**, **ranger** (i.e., an alternate random forest algorithm), and **gbm**.
+Note, you will remove both **emp_id** and **left_num** as predictors of **last_evaluation**.
+Set-up a training control object with *3-fold cross-validation repeated 3 times* and name it **train_control**.
+Name the ordinary least-squares regression model: **mod_reg_lm**.
+Name the single tree regression model: **mod_reg_rpart**.
+You can ignore any warning messages from running **rpart**.
+Name the random forest regression model: **mod_reg_rf**.
+For the random forest model, make sure to use **ranger** as the method and set **num.trees = 100**.
+Your computer will take 1-3 minutes to run the random forest model.
+Wait patiently.
+Name the gradient boosted regression machine: **mod_reg_gbm**.
+Calculate the predictions for each model.
+Name the predictions for the ordinary least-squares regression model: **mod_reg_lm_test**.
+You can keep the **type = "raw"** argument in the **predict()** function.
+Name the predictions for the single decision tree regression model: **mod_reg_rpart_test**.
+Name the predictions for the random forest regression model: **mod_reg_rf_test**.
+Name the predictions for the gradient boosted regression machine: **mod_reg_gbm_test**.
+Evaluate each model's accuracy with **postResample()**.
+
+**Question 6.1**: What is the R-squared value of the ordinary least-squares regression model?
+Which model performed the best?
+
+**Response 6.1**: *Rsquared: 0.1924587. Random forest model performed the best*.
+
+```{r, task6}
+#### Q6.1
+### train models
+## train controls
+train_control <- trainControl(
+  # repeated cross-validation
+  method = "repeatedcv", 
+  # 3-fold cross-validation
+  number = 3,
+  # cross-validation repeated 3 times
+  repeats = 3
+  )
+
+## model ordinary least-squares regression
+mod_reg_lm <- train(
+  # model equation
+  last_evaluation ~ . - emp_id - left_num,
+  # specify data, method, and controls
+  data = emp_train, method = "lm", trControl = train_control)
+
+## model decision tree
+mod_reg_rpart <- train(
+  # model equation
+  last_evaluation ~ . - emp_id - left_num,
+  # specify data, method, and controls
+  data = emp_train, method = "rpart", trControl = train_control)
+
+## model random forest
+mod_reg_rf <- train(
+  # model equation
+  last_evaluation ~ . - emp_id - left_num,
+  # specify data, method, and controls 
+  data = emp_train, method = "ranger", num.trees = 100, trControl = train_control)
+
+## model gradient boosted machine
+mod_reg_gbm <- train(
+  # model equation
+  last_evaluation ~ . - emp_id - left_num,
+  # specify data and method
+  data = emp_train, method = "gbm",
+  # specify verbosity and controls
+  verbose = FALSE, trControl = train_control)
+
+### test models
+## ordinary least-squares regression
+mod_reg_lm_test <- predict(mod_reg_lm, newdata = emp_test, type = "raw")
+
+# post resample
+postResample(mod_reg_lm_test, emp_test$last_evaluation)
+
+## decision tree
+mod_reg_rpart_test <- predict(mod_reg_rpart, newdata = emp_test, type = "raw")
+
+# post resample
+postResample(mod_reg_rpart_test, emp_test$last_evaluation)
+
+## random forest
+mod_reg_rf_test <- predict(mod_reg_rf, newdata = emp_test, type = "raw")
+
+# post resample
+postResample(mod_reg_rf_test, emp_test$last_evaluation)
+
+## gradient boosted machine
+mod_reg_gbm_test <- predict(mod_reg_gbm, newdata = emp_test, type = "raw")
+
+# post resample
+postResample(mod_reg_gbm_test, emp_test$last_evaluation)
+
+
+
+```

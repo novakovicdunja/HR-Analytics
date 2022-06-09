@@ -1,0 +1,112 @@
+---
+title: "Assignment: Flexdashboards"
+author: "Dunja Novaković"
+output:
+  flexdashboard::flex_dashboard:
+    source_code: embed
+    orientation: columns
+    vertical_layout: scroll
+    theme: paper
+---
+
+```{r, libraries, include=FALSE}
+### tidyverse for data wrangling and visualization
+library(tidyverse)
+
+### here to navigate project directory
+library(here)
+
+### flexdashboard to build dashboards in R Markdown
+library(flexdashboard)
+
+### plotly for web-friendly, interactive plots
+library(plotly)
+
+### DT for web-friendly, interactive tables
+library(DT)
+
+### rpart for decision trees
+library(rpart)
+```
+
+```{r, data, include=FALSE}
+### import a space delimited data file
+## import data
+emp_data <- read_delim(here("data", "emp.dat"), delim = " ",
+                       ## column types
+                       col_types = "dfffffddddd")
+
+### sample data
+emp_samp <- emp_data %>%
+  ## sample
+  sample_n(1500)
+```
+
+
+Column
+-----------------------------------------------------------------------
+
+### Performance v. Tenure
+
+```{r, tenure}
+### plot data
+## scatterplot for performance v. tenure
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=tenure, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Tenure", y = "Performance") 
+```
+
+### Performance v. Number of Projects
+
+```{r, projNum}
+### plot data
+## scatterplot for performance v. number_project
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=number_project, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Number of Projects", y = "Performance") 
+```
+
+
+Column
+-----------------------------------------------------------------------
+
+### Performance v. Average Hours per Month
+
+```{r, avgMtHr}
+### plot data
+## scatterplot for performance v. avg_month_hours
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=avg_month_hours, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Average Hours per Month", y = "Performance") 
+```
+
+### Performance v. Job Satisfaction
+
+```{r, jobSat}
+### plot data
+## scatterplot for performance v. job_sat
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=job_sat, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Job Satisfaction", y = "Performance") 
+```
+

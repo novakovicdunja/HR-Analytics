@@ -1,0 +1,572 @@
+---
+title: "Assignment: Staffing Validation"
+author: "Dunja Novaković"
+date: "2020-07-27"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Instructions
+
+This assignment reviews the *Staffing Validation* analytical lecture. 
+You will use the *staffing_validation.Rmd* file I reviewed in the video lectures to complete this assignment. 
+You will *copy and paste* relevant code from that file and update it to answer the questions in this assignment. 
+You will respond to questions in each section after executing relevant code to answer a question. 
+You will submit this assignment to its *Submissions* folder on *D2L*.
+You will submit this *(1)* completed **R Markdown** script and *(2)* a _HTML_ or _PDF_ rendered version of it to _D2L_ by the due date and time.
+If you installed `TinyTeX` successfully, then I prefer a *PDF* version.
+
+To start:
+
+For any analytical project, you want to create a clear project directory structure.  
+All materials from this course should exist in one folder on your computer.
+Inside of that main course folder, you should create folders to store course documentation, lecture analytical projects, assignments analytical projects, etc. 
+Inside of your folder for assignments analytical projects, you should create folder for this assignment named *staffing_validation*.
+
+Any analytical project folder should contain inside it at least three additional folders named *scripts*, *data*, and *plots*.
+Store this script in the *scripts* folder, the data for this assignment in the *data* folder, and any requested plots in the *plots* folder.
+Each analytical project should also contain a **.Rproj** file in its top-level directory. 
+Go to the *File* menu in *RStudio*, select *New Project...*, choose *Existing Directory*, go to the folder you created to contain this analytical project. 
+Select it as the top-level directory for this **RStudio Project**.  
+
+## Global Settings
+
+The first code chunk sets the global settings for the remaining code chunks in the document.
+Do *not* change anything in this code chunk.
+
+```{r, setup, include=FALSE}
+### specify echo setting for all code chunks
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+
+In this code chunk, we load packages we need for this assignment:
+
+1. **here**,
+2. **tidyverse**,
+3. **skimr**,
+4. **plotly**,
+5. **broom**,
+6. **modelr**,
+7. **relaimpo**,
+8. **interactions**, and
+9. **jtools**.
+
+We will use functions from these packages to import the data, examine the data, calculate summaries on the data, build regression models, and create visualizations from the data. 
+Do *not* change anything in this code chunk.
+
+```{r, libraries}
+### load libaries for use in current working session
+## here for workflow
+library(here)
+
+## tidyverse for data manipulation and plotting
+# loads eight different libraries simultaneously
+library(tidyverse)
+
+## skimr for summary statistics
+library(skimr)
+
+## plotly for interactive 3D plots
+library(plotly)
+
+## broom to work with model objects
+library(broom) 
+
+## modelr to work with model objects
+library(modelr)
+
+## relaimp to calculate relative predictor importance
+library(relaimpo)
+
+## interactions to make 2D plots to capture interaction effects
+library(interactions) 
+
+## jtools for printing clean results tables
+library(jtools)
+
+## sandwich for simple slope analysis
+library(sandwich)
+```
+
+## Task 1: Load Data
+
+Load the data for this assignment.
+We will use the same data as in the analytical lecture: **staff_sys_valid.csv**.
+
+Use the appropriate functions to navigate to your *data* directory and import the database. 
+Import the database as the object **staff_data**.
+Use **skim_without_charts()** to calculate summaries on the data grouped by **race**.
+
+**Question 1.1**: What is the mean **sjt** score for the **Hispanic** group?  
+
+**Response 1.1**: *28.79*.
+
+Compute the correlations among all of the numeric variables.
+
+**Question 1.2**: Which two variables are most correlated?
+Which two variables are least correlated?
+
+**Response 1.2**: *Most correlated: _sjt_ and _work_samp_. Least correlated: _job_perf_ and _cust_serv_*.
+
+```{r, task1}
+##### Q1.1
+#### import database
+### use here() to locate file in our project directory;
+### use read_csv() to import the data
+                       ## file path    
+staff_data <- read_csv(here("data", "staff_sys_valid.csv"), 
+  ## column types;
+  ## treat gender and race as factor variables
+  col_types = cols(gender = col_factor(), race = col_factor()))
+
+### distribution summaries
+## call data
+staff_data %>%
+  ## group by factors
+  group_by(race) %>%
+  ## skim
+  skim_without_charts()
+
+##### Q1.2
+### correlations
+## call data
+staff_data %>%
+  ## select
+  select_if(is.numeric) %>%
+  ## correlations
+  cor() 
+```
+
+## Task 2: Simple OLS Regression
+
+Estimate a simple OLS regression model where you predict **cust_serv** scores from **sjt**.
+Name the model **mod_1**.
+Examine the results with the **summary()** function.
+
+**Question 2.1**: How do you correctly interpret the **sjt** regression coefficient?
+
+**Response 2.1**: *The sjt regression coefficient tells us the expected increase in cust_serv for one unit increase in sjt. For one unit increase in sjt, we expect a 0.477599 increase in cust_serv*.
+
+Produce a scatterplot with **sjt** on x-axis and **cust_serv** on y-axis.
+Fit a regression line through the data points.
+
+**Question 2.2**: Do individuals with a **sjt** score of 35 or 25 have higher **cust_serv** scores?
+
+**Response 2.2**: *Individuals with a sjt score of 35 have higher cust_serv scores*.
+
+Apply **augment()** to **mod_1** and save the result as **mod_1_fit**.
+Open the spreadsheet view of **mod_1_fit**.
+
+**Question 2.3**: What is the third person's actual **cust_serv** score and this person's predicted **cust_serv** score from the model?
+
+**Response 2.3**: *Actual score: 20. Predicted score: 25.32529*.
+
+Calculate all of the unique predicted values from **mod_1** for each unique value of **sjt**.
+
+**Question 2.4**: What is the predicted value on **cust_serv** for someone with a **sjt** score of *25*?
+
+**Response 2.4**: *23.41490*.
+
+```{r, task2}
+##### Q2.1
+#### simple OLS regression model
+### build model
+mod_1 <- lm(cust_serv ~ sjt, data = staff_data)
+
+## summary of results
+# fuller output
+summary(mod_1)
+
+##### Q2.2
+### plot data and prediction line
+## call data and set mapping
+ggplot(staff_data, aes(x = sjt, y = cust_serv)) +
+  ## jitter geometry
+  geom_jitter(width = 0.4, height = 0.2, alpha = 0.5) +
+  ## smooth geometry
+  geom_smooth(method = "lm")
+
+##### Q2.3
+## compute fitted values for all individuals in the sample
+mod_1_fit <- augment(mod_1)
+
+##### Q2.4
+## examine unique fitted values
+# call data
+mod_1_fit %>%
+  # call predictor
+  data_grid(sjt) %>%
+  # calculate unique fitted values
+  add_predictions(mod_1)
+```
+
+## Task 3: Multiple OLS Regression
+
+Estimate a multiple OLS regression model where you predict **cust_serv** scores from **emot_intel** and **str_int** scores.
+Name the model **mod_2**.
+Examine the results with the **summary()** function.
+
+**Question 3.1**: How do you correctly interpret the **str_int** regression coefficient?
+What is the *multiple R-squared* for the model?
+On average, how wrong are the model's predictions (i.e., look at the *residual standard error*) in **cust_serv** units?
+
+**Response 3.1**: *The str_int regression coefficient tells us the expected increase in cust_serv for one unit increase in str_int. For one unit increase in str_int, we expect a 0.42642 increase in cust_serv. The multiple R-squared for this model is equal to 0.2922. On average, the model's predictions are wrong by 3.487*.
+
+Apply **augment()** to **mod_2** and save the result as **mod_2_fit**.
+Open the spreadsheet view of **mod_2_fit**.
+
+**Question 3.2**: What is the seventh person's actual **cust_serv** score and this person's predicted **cust_serv** score from the model?
+
+**Response 3.2**: *Actual score: 24. Predicted score: 25.70824*.
+
+Calculate all of the unique predicted values from **mod_2** for each unique combination of **emot_intel** and **str_int**.
+
+**Question 3.3**: What is the predicted value on **cust_serv** for someone with a **emot_intel** score of *12* and **str_int** score of *21*?
+
+**Response 3.3**: *18.53118*.
+
+Produce a 3D scatterplot using **plotly** functions.
+Place **emot_intel** on the x-axis, **str_int** on the y-axis, and **cust_serv** on the z-axis.
+Label the axes using *"Emot. Intel."*, *"Str. Int."*, and *"Cust. Serv."*, respectively.
+Fit a regression plane through the data points adjusting the relevant code from the analytical lecture.
+Make sure to compute **x_vals** for **emot_intel** and **y_vals** for **str_int**.
+Make sure to name **pred_data** columsn with *"emot_intel"* first and *"str_int"* second.
+Change the name of the colorbar to *"Cust. Serv."*.
+Print the plot after creating it.
+Click the **Zoom** button to pop out the plot.
+Interact with the plot by rotating it and zooming in and out.
+
+**Question 3.4**: Looking at the regression plane, do individuals with scores in the *upper-30s* or *mid-20s* on **emot_intel** and **str_int** have higher **cust_serv** scores?
+
+**Response 3.4**: *Individuals with scores in the upper-30s on emot_intel and str_int have higher cust_serv_scores*.
+
+```{r, task3}
+##### Q3.1
+#### multiple OLS regression model
+### build model
+mod_2 <- lm(cust_serv ~ emot_intel + str_int, data = staff_data)
+
+## summary of results
+# fuller output
+summary(mod_2)
+
+##### Q3.2
+## compute fitted values for all individuals in the sample
+mod_2_fit <- augment(mod_2)
+
+##### Q3.3
+## examine unique fitted values
+# call data
+mod_2_fit %>%
+  # call predictor
+  data_grid(emot_intel, str_int) %>%
+  # calculate unique fitted values
+  add_predictions(mod_2) 
+
+##### Q3.4
+### 3D plot without regression plane
+## select data and assign variables
+scatter3d <- plot_ly(data = mod_2_fit, 
+                     x = ~emot_intel, 
+                     y = ~str_int, 
+                     z = ~cust_serv, 
+                     opacity = 0.6) %>% 
+  ## add data points  
+  add_markers() %>% 
+  ## add axes labels
+  layout(scene = list(
+          xaxis = list(title = "Emot. Intel."),
+          yaxis = list(title = "Str. Int."),
+          zaxis = list(title = "Cust. Serv.")))
+
+### plot regression plane
+## set-up predictor value grid
+# x-axis unique values
+x_vals <- seq(min(mod_2_fit$emot_intel), max(mod_2_fit$emot_intel), length.out = 50)
+
+# y-axis unique values
+y_vals <- seq(min(mod_2_fit$str_int), max(mod_2_fit$str_int), length.out = 50)
+
+# grid of predictor values
+pred_data <- expand.grid(x_vals, y_vals)
+
+# name the columns of the prediction grid
+names(pred_data) <- c("emot_intel", "str_int")
+
+## use regression model to generate prediction values
+fit_vals <- predict(mod_2, newdata = pred_data)
+
+# organize prediction values in a matrix
+plane <- matrix(fit_vals, nrow = 50, ncol = 50, byrow = T)
+
+## call the 3D scatterplot
+scatter3d_plane <- scatter3d %>% 
+  ## add regression plane to 3D scatterplot
+              # x-axis values
+  add_surface(x = ~ x_vals, 
+              # y-axis values
+              y = ~ y_vals, 
+              # z-axis values for plane
+              z = ~ plane, 
+              # include z-axis color scale
+              showscale = T) %>%
+  ## add title for color scale
+  colorbar(title = "Cust. Serv.")
+## print plot
+scatter3d_plane
+```
+
+## Task 4: Staffing System
+
+Estimate a multiple OLS regression model where you predict **cust_serv** scores from:
+
+1. **proactive**, 
+2. **emot_intel**, 
+3. **sjt**, 
+4. **work_samp**, and 
+5. **str_int** scores scores.
+
+Name the model **mod_3**.
+Examine the results with the **summary()** function.
+
+**Question 4.1**: How do you correctly interpret the **work_samp** regression coefficient?
+What is the *multiple R-squared* for the model?
+On average, how wrong are the model's predictions (i.e., look at the *residual standard error*) in **cust_serv** units?
+
+**Response 4.1**: *The work_samp regression coefficient tells us the expected increase in cust_serv for one unit increase in work_samp. For one unit increase in work_samp, we expect a 0.20141 increase in cust_serv. The multiple R-squared for the model is equal to 0.3396. On average, the model's predictions are wrong by 3.368. *.
+
+Apply **augment()** to **mod_3** and save the result as **mod_3_fit**.
+Open the spreadsheet view of **mod_3_fit**.
+
+**Question 4.2**: What is the twenty-second person's actual **cust_serv** score and this person's predicted **cust_serv** score from the model?
+
+**Response 4.2**: *Actual score: 31. Predicted score: 24.95111*.
+
+Use **mod_3_fit** to print the actual criterion (i.e., **cust_serv**) rank order and the model (i.e., **.fitted**) rank order of individuals.
+
+**Question 4.3**: Which individual has the highest observed **cust_serv** score?
+Which individual does the model predict to have the highest **cust_serv** score?
+Out of the *top 10* observed **cust_serv** scores, how many did the model predict to be in the *top 10* of **cust_serv** scores?
+
+**Response 4.3**: *The individual with the id equal to 3751 has the highest observed cust_serv score. The model predicts the individual with the id equal to 5051 to have the highest cust_serv score. The model predicted 2 out of the top 10 observed cust_serv scores*.
+
+Evaluate staffing decisions when the hiring threshold is *27* and the criterion threshold is *26*.
+Plot the two thresholds with fitted values on the x-axis and criterion values on the y-axis.
+Compute the number of true positives, true negatives, false positives, and false negatives and save it to an object named **mod_3_acc**.
+Calculate the overall, positive, negative, sensitivity, and specificity accuracy of staffing decisions with this model and these thresholds.
+
+**Question 4.4**: How many total *false positive* decisions would be made?
+How many total *true negative* decisions would be made?
+Which accuracy measure would be highest?
+Which accuracy measure would be lowest?
+
+**Response 4.4**: *Total false positives: 469. Total true negatives: 4817. The highest accuracy measure is specificity. The lowest accuracy measure is sensitivity*.
+
+Compute the relative importance of predictors in **mod_3**.
+
+**Question 4.5**: How much of the total *R-squared* is attributed to **emot_intel**?
+Which predictor accounts for the most *R-squared*?
+
+**Response 4.5**: *Approx. 6.16% of the total R-squared is attributed to emot_intel. The predictor str_int accounts for the most R-squared*.
+
+```{r, task4}
+##### Q4.1
+#### multiple OLS regression model
+### build model
+mod_3 <- lm(cust_serv ~ proactive + emot_intel + sjt + work_samp + str_int, 
+            data = staff_data)
+
+## summary of results
+# fuller output
+summary(mod_3)
+
+##### Q4.2
+## compute fitted values for all individuals in the sample
+mod_3_fit <- augment(mod_3)
+
+##### Q4.3
+### actual criterion rank order
+## call data
+mod_3_fit %>% 
+  ## add id
+  mutate(id = 1:nrow(mod_3_fit)) %>%
+  ## select variables
+  dplyr::select(id, cust_serv, .fitted) %>%
+  ## arrange by criterion values
+  arrange(desc(cust_serv)) 
+
+### model rank order
+## call data
+mod_3_fit %>% 
+  ## add id
+  mutate(id = 1:nrow(mod_3_fit)) %>%
+  ## reorder variables
+  dplyr::select(id, cust_serv, .fitted) %>%
+  ## arrange by fitted values
+  arrange(desc(.fitted)) 
+
+##### Q4.4
+### plot data and prediction line
+## thresholds
+# hiring
+hire_thresh <- 27
+
+# criterion
+crit_thresh <- 26
+
+## call data and set mapping
+ggplot(mod_3_fit, aes(x = .fitted, y = cust_serv)) +
+  ## jitter geometry
+  geom_jitter(width = 0.4, height = 0.2, alpha = 0.5) +
+  ## criterion value threshold for successful customer service
+  geom_hline(yintercept = crit_thresh, color = "red", size = 2) +
+  ## predicted value threshold for hiring
+  geom_vline(xintercept = hire_thresh, color = "green", size = 2)
+
+### evaluate accuracy of predictions
+## name result and choose data
+mod_3_acc <- mod_3_fit %>%
+  ## summarize
+            # true positives
+  summarize(tp = sum(.fitted >= hire_thresh & cust_serv >= crit_thresh),
+            # true negatives
+            tn = sum(.fitted < hire_thresh & cust_serv < crit_thresh),
+            # false positives
+            fp = sum(.fitted >= hire_thresh & cust_serv < crit_thresh),
+            # false negatives
+            fn = sum(.fitted < hire_thresh & cust_serv >= crit_thresh))
+
+## accuracy computations
+mod_3_acc %>%
+  # overall accuracy
+  summarize(overall = (tp + tn)/(tp + tn + fp + fn),
+            # positive accuracy
+            positive = tp/(tp + fp),
+            # negative accuracy
+            negative = tn/(tn + fn),
+            # sensitivity
+            sensitivity = tp/(tp + fn),
+            # specificity
+            specificity = tn/(tn + fp))
+
+##### Q4.5
+### predictor importance
+## specify model and type of relative importance
+calc.relimp(mod_3, type = "car")
+
+
+```
+
+## Task 5: Evaluate Groups
+
+Add mean-centered **emot_intel** to **staff_data**.
+Name the new variable **emot_intel_cent**.
+Examine the contrasts of **gender**.
+Estimate a model where **cust_serv** scores are predicted by **emot_intel_cent** and **gender** scores including the *interaction* between the two predictors. 
+Name the model **mod_4**.
+Examine the results with the **summary()** function.
+
+**Question 5.1**: What is the regression coefficient for the interaction effect of the two predictors?
+
+**Response 5.1**: *-0.13593*.
+
+Produce the scatterplot and the regression lines for each **gender**.
+Calculate the simple slopes for each **gender** from the model.
+
+**Question 5.2**: Is the difference between *female* and *male* predicted **cust_serv** scores greater when individuals are *10* units *above* or *below* the mean on **emot_intel**? 
+How do you interpret the simple slope for *females*?
+
+**Response 5.2**: *The difference between female and male predicted cust_serv scores is greater when individuals are 10 units above the mean on emot_intel. The estimated slope for females is equal to 0.45 and is higher than the slope for males. It indicates a stronger connection between emotional intelligence and customer service scores for females*.
+
+Examine the contrasts of **race**.
+Estimate a model where **cust_serv** scores are predicted by **emot_intel_cent** and **race** scores including the *interaction* between the two predictors. 
+Name the model **mod_5**.
+Examine the results with the **summary()** function.
+
+**Question 5.3**: What is the regression coefficient for the interaction effect of **emot_intel_cent** and the *Hispanic* group?
+
+**Response 5.3**: *0.07343*.
+
+Produce the scatterplot and the regression lines for each **race**.
+Calculate the simple slopes for each **race** from the model.
+
+**Question 5.4**: Which group is predicted to have the lowest **cust_serv** scores regardless of **emot_intel_cent** scores?
+Which group has the second-strongest relationship between **emot_intel_cent** and **cust_serv** (i.e., which group has the second-highest simple slope)?
+
+**Response 5.4**: *White people are predicted to have the lowest cust_serv scores. Black people the second-strongest relationship between emot_intel_cent and cust_serv*.
+
+```{r, task5}
+##### Q5.1
+#### data preparation
+### center continuous predictor
+## call data
+staff_data <- staff_data %>%
+  ## mutate
+  mutate(emot_intel_cent = emot_intel - mean(emot_intel))
+
+## examine contrasts of categorical predictor
+# gender
+contrasts(staff_data$gender)
+
+#### multiple OLS regression model
+### build model
+mod_4 <- lm(cust_serv ~ emot_intel_cent * gender, data = staff_data)
+
+## summary of results
+# fuller output
+summary(mod_4)
+
+##### Q5.2
+### plot
+## call data
+ggplot(staff_data, aes(x = emot_intel_cent, y = cust_serv, color = gender)) +
+  ## jitter geometry
+  geom_jitter(width = 0.4, height = 0.2, alpha = 0.5) +
+  ## smooth geometry
+  geom_smooth(aes(linetype = gender), color = "black", method = "lm")
+
+### calculate simple slopes
+## specify model
+sim_slopes(model=mod_4, 
+  ## specify x-axis variable
+  pred = emot_intel_cent, 
+  ## specify moderator variable
+  modx = gender)
+
+##### Q5.3
+### build model
+## contrasts for race
+contrasts(staff_data$race)
+
+## model
+mod_5 <- lm(cust_serv ~ emot_intel_cent * race, data = staff_data)
+
+## summary of results
+# fuller output
+summary(mod_5)
+
+##### Q5.4
+### plot
+## call data
+ggplot(staff_data, aes(x = emot_intel_cent, y = cust_serv, color = race)) +
+  ## jitter geometry
+  geom_jitter(width = 0.4, height = 0.2, alpha = 0.5) +
+  ## smooth geometry
+  geom_smooth(aes(linetype = race), color = "black", method = "lm")
+
+### calculate simple slopes
+## specify model
+sim_slopes(mod_5, 
+  ## specify x-axis variable
+  pred = emot_intel_cent, 
+  ## specify moderator variable
+  modx = race)
+
+```

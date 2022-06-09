@@ -1,0 +1,281 @@
+---
+title: "Assignment: Flexdashboards"
+author: "Dunja Novaković"
+output:
+  flexdashboard::flex_dashboard:
+    source_code: embed
+    orientation: columns
+    vertical_layout: scroll
+    theme: paper
+---
+
+```{r, libraries, include=FALSE}
+### tidyverse for data wrangling and visualization
+library(tidyverse)
+
+### here to navigate project directory
+library(here)
+
+### flexdashboard to build dashboards in R Markdown
+library(flexdashboard)
+
+### plotly for web-friendly, interactive plots
+library(plotly)
+
+### DT for web-friendly, interactive tables
+library(DT)
+
+### rpart for decision trees
+library(rpart)
+```
+
+```{r, data, include=FALSE}
+### import a space delimited data file
+## import data
+emp_data <- read_delim(here("data", "emp.dat"), delim = " ",
+                       ## column types
+                       col_types = "dfffffddddd")
+
+### sample data
+emp_samp <- emp_data %>%
+  ## sample
+  sample_n(1500)
+
+## number without work accident
+num_wout_work_acc <- emp_samp %>%
+  ## filter for employees who haven't experienced work accidents
+  filter(work_accident == "No") %>%
+  ## count
+  nrow()
+
+## number with work accident
+num_with_work_acc <- emp_samp %>%
+  ## filter for employees who have experienced a work accident
+  filter(work_accident == "Yes") %>%
+  ## count
+  nrow()
+```
+
+
+Plots
+================
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### Performance v. Tenure
+
+```{r, tenure}
+### plot data
+## scatterplot for performance v. tenure
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=tenure, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Tenure", y = "Performance") 
+```
+
+### Performance v. Number of Projects
+
+```{r, projNum}
+### plot data
+## scatterplot for performance v. number_project
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=number_project, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Number of Projects", y = "Performance") 
+```
+
+### Performance v. Average Hours per Month
+
+```{r, avgMtHr}
+### plot data
+## scatterplot for performance v. avg_month_hours
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=avg_month_hours, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Average Hours per Month", y = "Performance") 
+```
+
+### Performance v. Job Satisfaction
+
+```{r, jobSat}
+### plot data
+## scatterplot for performance v. job_sat
+# call data and set aesthetics
+ggplot(emp_samp, aes(x=job_sat, y = last_evaluation)) +
+  # point geometry
+  geom_point(alpha = 0.5) +
+  # smooth geometry
+  geom_smooth(method = "lm") +
+  # aesthetic labels
+  labs(x = "Job Satisfaction", y = "Performance") 
+```
+
+Low Salary {data-navmenu=Tables} 
+================
+
+Column
+-----------------------------------------------------------------------
+
+### Low Salary
+
+```{r, salLow}
+## call data
+emp_samp %>%
+  ## filter
+  filter(salary == "low") %>%
+  ## select variables
+  select(emp_id, tenure, number_project, avg_month_hours, job_sat, last_evaluation) %>%
+  ## datatable
+                # remove row names
+  DT::datatable(rownames = FALSE, 
+                # add buttons
+                extensions = "Scroller",
+                # options
+                options = list(
+                  # table, length, pagination, scrolling
+                  dom = "tlpS",
+                  # scroller
+                  scrollY = "200px"
+                ))
+```
+
+Medium Salary {data-navmenu=Tables} 
+================
+
+Column
+-----------------------------------------------------------------------
+
+### Medium Salary
+
+```{r, salMed}
+## call data
+emp_samp %>%
+  ## filter
+  filter(salary == "medium") %>%
+  ## select variables
+  select(emp_id, tenure, number_project, avg_month_hours, job_sat, last_evaluation) %>%
+  ## datatable
+                # remove row names
+  DT::datatable(rownames = FALSE,
+                # add buttons
+                extensions = "Scroller",
+                # options
+                options = list(
+                  # table, length, pagination, scrolling
+                  dom = "tlpS",
+                  # scroller
+                  scrollY = "200px"
+                ))
+```
+
+High Salary {data-navmenu=Tables} 
+================
+
+Column
+-----------------------------------------------------------------------
+
+### High Salary
+
+```{r, salHigh}
+## call data
+emp_samp %>%
+  ## filter
+  filter(salary == "high") %>%
+  ## select variables
+  select(emp_id, tenure, number_project, avg_month_hours, job_sat, last_evaluation) %>%
+  ## datatable
+                # remove row names
+  DT::datatable(rownames = FALSE,
+                # add buttons
+                extensions = "Scroller",
+                # options
+                options = list(
+                  # table, length, pagination, scrolling
+                  dom = "tlpS",
+                  # scroller
+                  scrollY = "200px"
+                ))
+```
+
+
+Gauges 
+================
+Column
+-----------------------------------------------------------------------
+
+### Number of Employees Without a Work Accident
+
+```{r, numWoutWA}
+## value box
+         # value
+valueBox(num_wout_work_acc,
+         # caption
+         caption = "Number of Employees Without a Work Accident",
+         # icon
+         icon = "fa-chart-bar")
+```
+
+### Percent of Employees Without a Work Accident
+
+```{r, propWoutWA}
+## gauge for employees without a work accident
+      # value
+gauge(value = round(100*num_wout_work_acc/nrow(emp_samp), 2),
+      # minimum and maximum
+      min = 0, max = 100,
+      # sectors
+      sectors = gaugeSectors(
+        success = c(90, 100),
+        warning = c(50, 89),
+        danger = c(0, 49)
+      ),
+      # percentage calculation
+      symbol = "%")
+```
+
+
+Column
+-----------------------------------------------------------------------
+
+### Number of Employees With a Work Accident
+
+```{r, numWithWA}
+## value box
+         # value
+valueBox(num_with_work_acc,
+         # caption
+         caption = "Number of Employees With a Work Accident",
+         # icon
+         icon = "fa-chart-bar")
+```
+
+### Percent of Employees With a Work Accident
+
+```{r, propWithWA}
+## gauge for employees with a work accident
+      # value
+gauge(value = round(100*num_with_work_acc/nrow(emp_samp), 2),
+      # minimum and maximum
+      min = 0, max = 100,
+      # sectors
+      sectors = gaugeSectors(
+        success = c(90, 100),
+        warning = c(50, 89),
+        danger = c(0, 49)
+      ),
+      # percentage calculation
+      symbol = "%")
+```

@@ -1,0 +1,145 @@
+---
+title: "Assignment: Flexdashboards"
+author: "Dunja Novaković"
+date: "2021-08-03"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Instructions
+
+This assignment reviews the *Dashboards* analytical lecture. 
+You will use the set of *.Rmd* files I reviewed in the video lectures to complete this assignment. 
+You will *write* separate *.Rmd* files to create the dashboards described in this file.
+You can submit these files to their *Submissions* folder on *D2L*.
+You will submit all *.Rmd* files that represent each dashboard to *D2L* by the due date and time.
+You will NOT submit any *PDF* this week.
+
+## Flexdashboard 1
+
+Write an **.Rmd** file that creates a flexdashboard with the following specifications.
+Name the file **flexdash_1.Rmd**.
+
+The **YAML** heading should contain a title (e.g., **Assignment: Flexdashboards**) and an output specifying a flexdashboard with *source code embedded*, *column orientation*, *scrolling vertical layout*, and *paper theme*. 
+
+Write this flexdashboard WITHOUT shiny.
+
+Write a libraries code chunk that gets excluded (i.e., write **include=FALSE** in the code chunk options) upon rendering the dashboard with the following libraries:
+
+1. **tidyverse**, 
+2. **here**, 
+3. **flexdashboard**, 
+4. **plotly**, 
+5. **DT**, and 
+6. **rpart**.
+
+Write a data code chunk that gets excluded (i.e., write **include=FALSE** in the code chunk options) upon rendering the dashboard to import the **emp.dat** space-delimited data file.
+Save the data as **emp_data**.
+In the the same data code chunk, create **emp_samp** from **emp_data** by randomly sampling *1500* employees with **sample_n()**.
+
+
+Make a single-page flexdashboard consisting of two columns and two rows.
+
+Use **ggplot** on **emp_samp** to make a scatterplot for each of the four slots of the dashboard.
+Set **alpha = 0.5** in **geom_point**.
+
+Make **last_evaluation** the y-axis for each of the scatterplots.
+For the top-left slot, make **tenure** the x-axis.
+For the bottom-left slot, make **number_project** the x-axis.
+For the top-right slot, make **avg_month_hours** the x-axis.
+For the bottom-right slot, make **job_sat** the x-axis.
+Include a smooth **lm** geometry and label the axes correctly for each scatterplot.
+
+Make the title of each slot (note: NOT plot) appropriately descriptive (e.g., write **Performance v. Tenure** after the hash marks for a slot).
+
+Remember, you might need to **Knit to HTML** first before the **Knit to flex_dashboard** option appears.
+**Knit to flex_dashboard** once the option appears to see the dashboard.
+
+Again, you will just submit **flexdash_1.Rmd** plus the other four *R Markdown* files you create for this assignment to **D2L**.
+
+## Flexdashboard 2
+
+Use **flexdash_1.Rmd** as the starting point for this flexdashboard.
+Name this file **flexdash_2.Rmd**.
+
+Keep the exact same **YAML**, libraries, and data specifications as **flexdash_1.Rmd**. 
+
+Make a flexdashboard consisting of two navigation pages.
+
+On the first navigation page, place the four plots from **flexdash_1.Rmd** into a **tabset**.
+Name the navigation page **Plots**.
+This navigation page should NOT contain a drop-down menu.
+
+On the second navigation page, make three sub-pages that a user can navigate to via a drop-down menu.
+Each sub-page contains a table made with **DT::datatable()** that filters **emp_data** by the three levels of **salary**: **low**, **medium**, and **high**.
+Select **emp_id**, **tenure**, **number_project**, **avg_month_hours**, **job_sat**, and **last_evaluation** as the variables to display.
+Name the navigation page **Tables**.
+Name the sub-pages: **Low Salary**, **Medium Salary**, and **High Salary**.
+Enable the table, pagination, scrolling, and length inside **DT::datatable**.
+
+## Flexdashboard 3
+
+Use **flexdash_2.Rmd** as the starting point for this flexdashboard.
+Name this file **flexdash_3.Rmd**.
+
+Add a third navigation page consisting of NO sub-pages.
+Name the navigation page **Gauges**.
+
+This page should consist of four slots arranged in two columns and two rows.
+
+In the data code chunk, compute the number of employees without and with a work accident in **emp_samp**.
+Name the computed objects as **num_wout_work_acc** for number of employees without a work accident and **num_with_work_acc** for number of employees with a work accident.
+
+In the *top-left* slot, make a *value box* that counts the number of employees *without* a work accident.
+In the *top-right* slot, make a *value box* that counts the number of employees *with* a work accident.
+Add a chart bar icon and use appropriate captions.
+
+In the *bottom-left* slot, make a *gauge* that calculates the percentage of employees *without* a work accident.
+In the *bottom-right* slot, make a *gauge* that calculates the percentage of employees *with* a work accident.
+Set the minimum and maximum of the gauges to *0* and *100*, respectively.
+Set the gauge sectors to **90-100** for **success**, **50-89** for **warning**, and **0-49** for **danger**.
+
+## Flexdashboard 4
+
+Use **flexdash_3.Rmd** as the starting point for this flexdashboard.
+Name this file **flexdash_4.Rmd**.
+
+Remove the **vertical_layout** from the **YAML** header.
+
+Add a fourth navigation *storyboard* page consisting of two sub-pages.
+Name the navigation page **Predictions**.
+Name the storyboard tiles **Evalute Accuracy of a Decision Tree for Turnover Predictions** and **Evaluate Accuracy of OLS Regression for Performance Predictions**.
+
+In the data code chunk, create **emp_train** and **emp_test** from **emp_data** by randomly sampling *65%* of employees from **emp_data** to create **emp_train** and the remaining employees forming **emp_test**.
+
+For the first storyboard tile, use the code from the analytical lecture to make a bar plot showing the prediction accuracy of a *decision tree model* to predict **left** trained on **emp_train** and evaluated on **emp_test**.
+Use **rpart()** to form a decision tree model to predict **left** from all predictors except for **emp_id**.
+
+For the second storyboard tile, use the code from the analytical lecture to make a scatterplot showing the prediction accuracy of an *ordinary least-squares regression model* to predict **last_evaluation** trained on **emp_train** and evaluated on **emp_test**.
+Use **lm()** to form an ordinary least-squares regression model to predict **last_evaluation** from all predictors except for **emp_id**.
+
+Include storyboard notes for each sub-page.
+
+## Flexdashboard 5
+
+This dashboard is *not* required to complete this assignment and receive 100% on it.
+This is just an extra challenge for fun!
+
+Use **flexdash_4.Rmd** as the starting point for this flexdashboard.
+Name this file **flexdash_5.Rmd**.
+
+Add **runtime: shiny** to the **YAML** section.
+
+Add a **sidebar** page to create a *slider input* that controls how many employees are sampled from **emp_data** to compute everything in the flexdashboard.
+Make the minimum and maximum of the slider *1000* and *5000*, respectively, with a default value of *3000* and steps of *500*.
+
+Note, you will keep the importing of **emp_data** in the data code chunk.
+However, you will move all other code in the data code chunk to the new sidebar code chunk and make required adjustments for shiny reactivity.
+
+Adjust the code in **flexdash_4.Rmd** as required in order to make the flexdashboard reactive to changes in the slider input for all computations.
+See the lecture script for guidance.

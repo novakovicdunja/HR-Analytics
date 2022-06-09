@@ -1,0 +1,615 @@
+---
+title: "Assignment: Clustering Employees"
+author: "Dunja Novaković"
+date: "2021-08-02"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Instructions
+
+This assignment reviews the *Unsupervised Learning* analytical lecture. 
+You will use the *unsupervised_learning.Rmd* file I reviewed in the video lectures to complete this assignment. 
+You will *copy and paste* relevant code from that file and update it to answer the questions in this assignment. 
+You will respond to questions in each section after executing relevant code to answer a question. 
+You will submit this assignment to its *Submissions* folder on *D2L*.
+You will submit this *(1)* completed **R Markdown** script and *(2)* a _PDF_, _Word_, or _HTML_ rendered version of it to _D2L_ by the due date and time.
+As a first option, if you installed `TinyTeX` successfully, then I prefer a *PDF* version.
+As a second option, if you have *Microsoft Word*, then I prefer a *Word* version.
+As a third option, you can knit to *HTML*.
+The first two options work better with *D2L*.
+
+To start:
+
+For any analytical project, you want to create a clear project directory structure.  
+All materials from this course should exist in one folder on your computer.
+Inside of that main course folder, you should create folders to store course documentation, lecture analytical projects, assignments analytical projects, etc. 
+Inside of your folder for assignments analytical projects, you should create folder for this assignment named *unsupervised_learning*.
+
+Any analytical project folder should contain inside it at least three additional folders named *scripts*, *data*, and *plots*.
+Store this script in the *scripts* folder, the data for this assignment in the *data* folder, and any requested plots in the *plots* folder.
+Each analytical project should also contain a **.Rproj** file in its top-level directory. 
+Go to the *File* menu in *RStudio*, select *New Project...*, choose *Existing Directory*, go to the folder you created to contain this analytical project. 
+Select it as the top-level directory for this **RStudio Project**.  
+
+## Global Settings
+
+The first code chunk sets the global settings for the remaining code chunks in the document.
+Do *not* change anything in this code chunk.
+
+```{r, setup, include=FALSE}
+### specify echo setting for all code chunks
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+
+In this code chunk, we load packages we need for this assignment:
+
+1. **here**,
+2. **tidyverse**,
+3. **skimr**,
+4. **cluster**,
+5. **dendextend**, 
+6. **factoextra**, and
+7. **Rtsne**.
+
+We will use functions from these packages to import the data, examine the data, calculate summaries on the data, build logistic regression models, and create visualizations from the data. 
+Do *not* change anything in this code chunk.
+
+```{r, libraries}
+### load libaries for use in current working session
+## here for workflow
+library(here)
+
+## tidyverse for data manipulation and plotting
+# loads eight different libraries simultaneously
+library(tidyverse)
+
+## skimr for summary statistics
+library(skimr)
+
+## cluster for partitioning around medoids
+library(cluster)
+
+## dendextend for visualizing dendrograms
+library(dendextend)
+
+## factoextra for clustering visualizations
+library(factoextra)
+
+## Rtsne for dimensionality reduction
+library(Rtsne)
+```
+
+## Task 1: Load, Clean, and Explore Data
+
+Load the **emp_att.tsv** data file with the correct functions, skipping the first line, setting column names to false, and save the data as **emp_att_data**.
+Name and mutate the columns just like in the lecture script.
+
+Use **skim_without_charts()** on **emp_att_data** while grouping by **mentor_type**.
+
+**Question 1.1**: What is the average **email_overload** for individuals with an internal manager mentor (i.e., **Mgr. Mentor Internal**)?
+
+**Response 1.1**: *2.08*.
+
+Produce density plots for **job_stress** filling in by **married**.
+Use a facet grid for **useNowFlextime** by **gender**.
+Label the axes and fill appropriately.
+
+**Question 1.2**: For which combination of **useNowFlextime** and **gender** are the density distributions for single and married individuals essentially the same?
+
+**Response 1.2**: *Gender: Female, UseNowFlextime:No*.
+
+Produce a scatterplot of the relationship between **mgr_burnout** on the x-axis and **burnout** on the y-axis.
+Facet wrap by **mentor_type**.
+Fit a **lm** smooth geometry.
+Label the axes appropriately.
+
+**Question 1.3**: For which **mentor_type** is the linear relationship between manager (**mgr_burnout**) and employee (**burnout**) burnout negative?
+
+**Response 1.3**: *For the "No Mentor" type*.
+
+```{r, task1}
+#### Q1.1
+### load data via the read_tsv and here functions
+emp_att_data <- read_tsv(here("data", "emp_att.tsv"), 
+                         ## do not create column names
+                         col_names = FALSE, 
+                         ## skip the first row in the data file
+                         skip = 1)
+
+### clean data
+## name the columns
+names(emp_att_data) <- c("gender", "mgr_perf", "mgr_help_beh",  
+  "mgr_burnout", "email_overload", "depression", "anxiety",
+  "cog_failure", "workaholism", "burnout", "job_stress", 
+  "perfectionism", "engagement", "useNowFlextime", "useNowShortWk",
+  "useNowPaidFMLA", "useNowFlexAcct", "useNowEaseBack", "career_interrupt",
+  "mentor_type", "partner_employment", "married", "sum_social_interrupt")
+
+## convert character columns to factors
+# overwrite data
+emp_att_data <- emp_att_data %>%
+  # mutate relevant variables
+  mutate_at(vars(gender, starts_with("use"), married,
+                 career_interrupt, mentor_type, partner_employment),
+            as_factor) %>%
+  # change labels for gender
+  mutate(gender = fct_recode(gender, `Female` = "female", `Male` = "male")) %>%
+  # round numeric variables to two decimal places
+  mutate_if(is.numeric, ~ round(., digits = 2))
+
+### explore data
+## call data
+emp_att_data %>%
+  ## group by variables
+  group_by(mentor_type) %>%
+  ## summarize
+  skim_without_charts()
+
+#### Q1.2
+### plot data
+## density distributions 
+# call data and set aesthetics
+ggplot(emp_att_data, aes(x = job_stress, fill = married)) +
+  # density geometry
+  geom_density(alpha = 0.5) +
+  # facet by flex time and short week
+  facet_grid(useNowFlextime ~ gender, labeller = label_both) +
+  # aesthetic labels
+  labs(x = "Job stress", y = "Density", fill = "Married") 
+
+#### Q1.3
+## hexagonal count plots
+# call data and set aesthetics
+ggplot(emp_att_data, aes(x = mgr_burnout, y = burnout)) +
+  # hexagonal geometry
+  geom_point() +
+  # facet by flex time and short week
+  facet_wrap(~ mentor_type) +
+  # smooth geometry
+  geom_smooth(method = "lm") + 
+  # aesthetic labels
+  labs(x = "Manager Burnout", y = "Burnout")
+
+
+```
+
+## Task 2: Agglomerative Hierarchical Clustering
+
+Create a new data object named **emp_att_num** consisting of the following numeric variables: **burnout**, **job_stress**,  **workaholism**, **anxiety**, **perfectionism**, **engagement**, and **depression**.
+Compute the Euclidean distance matrix based on **emp_att_num** and name the result **emp_dist_num**.
+Make sure to apply **scale** to **emp_att_num**.
+Apply **fviz_dist()** to **emp_dist_num** to visualize the distance matrix.
+
+**Question 2.1**: Relatively speaking, are the individuals in the top-right quadrant more dissimilar or similar to each other?
+
+**Response 2.1**: *More similar to each other*.
+
+Apply the agglomerative hierarchical clustering algorithm to the distance matrix saving the result as **emp_hclust** using the **complete** method.
+Apply **head()** to the *merge* sequence from **emp_hclust** and set **n = 20** inside **head()**.
+
+**Question 2.2**: Which two individuals merged to form the first cluster?
+How many individuals subsequently joined the first cluster?
+Which two individuals merged to form the second cluster?
+
+**Response 2.2**: *Individuals 2 and 110 merged to form the first cluster. Ten more individuals subsequently joined the first cluster. Individuals 8 and 67 merged to form the second cluster*.
+
+Produce a tree and radial dendrogram plots.
+First, create a new object named **dend_emp_hclust** from applying **as.dendrogram()** to **emp_hclust**.
+Set attributes of **dend_emp_hclust** by using code from the lecture.
+Set **branches_k_color** to *10* clusters.
+Remove labels of dendrogram leaves by setting **labels_cex** to *0*.
+Convert **dend_emp_hclust** to a ggplot dendrogram.
+Produce a tree dendrogram.
+Produce a radial dendrogram.
+
+**Question 2.3**: Looking at the plots, is there an approximately equal number of individuals in each of the *10* clusters?
+
+**Response 2.3**: *No*.
+
+First, use **cutree()** to count the number of individuals when the results from **emp_hclust** are divided into *10* clusters.
+Second, plot the average values on the original variables of the first *6* clusters after applying **cutree()** to divide **emp_hclust** into *10* clusters.
+The plot should be a bar plot of each cluster on the x-axis.
+The height of the bar should represent the average value on each of the original variables.
+Apply a facet wrap using the original variables.
+See the lecture script.
+
+**Question 2.4**: How many individuals are in the fifth cluster?
+Which cluster has the highest average **anxiety**?
+Which cluster has the highest average **engagement**?
+
+**Response 2.4**: *There are 32 individuals in the fifth cluster. Cluster 6 has the highest average anxiety. Cluster 3 has the highest average engagement*.
+
+```{r, task2}
+#### Q2.1
+### numeric variables data object
+## create data object
+emp_att_num <- emp_att_data %>%
+  ## select variables of choice
+  select(burnout, job_stress, workaholism, anxiety, perfectionism, engagement, depression)
+
+### distance between employees on set of variables
+## calculate Euclidean distance
+emp_dist_num <- dist(scale(emp_att_num), method = "euclidean")
+
+## visualize distances
+fviz_dist(emp_dist_num, 
+          gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"),
+          show_labels = FALSE)
+
+#### Q2.2
+### agglomerative hierarchical clustering with complete linkage
+## run clustering
+emp_hclust <- hclust(emp_dist_num, method = "complete")
+
+##head
+# merge sequence
+head(emp_hclust$merge, n=20)
+
+#### Q2.3
+### visualize
+## create dendrogram object
+dend_emp_hclust <- as.dendrogram(emp_hclust)
+
+## set attributes of dendrogram
+# overwrite dendrogram
+dend_emp_hclust <- dend_emp_hclust %>%
+  # set colors of branches and number of cuts
+  set("branches_k_color", k = 10) %>%
+  # set width of branches
+  set("branches_lwd", 0.6) %>%
+  # set color of labels
+  set("labels_colors", 
+      value = c("darkslategray")) %>% 
+  # set size of labels
+  set("labels_cex", 0)
+
+## convert to ggplot object
+dend_emp_hclust <- as.ggdend(dend_emp_hclust)
+
+## traditional dendrogram plot
+# call plot
+ggplot(dend_emp_hclust) +
+  # minimal theme
+  theme_minimal() +
+  # remove x-axis labels
+  theme(axis.text.x = element_blank()) +
+  # labels
+  labs(x = "Ind. Index", y = "Height", title = "Dendrogram")
+
+## radial dendrogram plot
+# call plot
+ggplot(dend_emp_hclust) +
+  # minimal theme
+  scale_y_reverse(expand = c(0.2, 0.2)) +
+  # polar coordinates
+  coord_polar(theta = "x")
+
+#### Q2.4
+### compute cluster statistics
+## call data
+emp_att_num %>%
+  ## add cluster variable
+  mutate(hier_clust = cutree(emp_hclust, k = 10)) %>%
+  ## count individuals
+  count(hier_clust)
+
+## call data
+emp_att_num %>%
+  ## add cluster variable
+  mutate(hier_clust = cutree(emp_hclust, k = 10)) %>%
+  ## filter 
+  filter(hier_clust %in% 1:6) %>%
+  ## group by cluster
+  group_by(hier_clust) %>%
+  ## summarize
+  summarize_all(list(~mean(.))) %>%
+  ## pivot longer
+  pivot_longer(cols = -hier_clust, names_to = "var", values_to = "value") %>%
+  ## mutate
+  mutate(hier_clust = as_factor(hier_clust)) %>%
+  ## ggplot
+  ggplot(aes(x = hier_clust, y = value, fill = hier_clust)) +
+    ## bar plot
+    geom_col() +
+    ## facet wrap
+    facet_wrap(~var, scales = "free_y") +
+    ## labels
+    labs(y = "Average Value", fill = "Cluster") +
+    ## change legend position and remove x-axis label
+    theme(legend.position = "bottom",
+          axis.title.x = element_blank())
+
+
+```
+
+## Task 3: K-means Clustering
+
+Set the random seed to *27* with **set.seed(27)**.
+Then, apply the K-means clustering algorithm on **emp_att_num** with *k* (i.e., number of centers) set to *8* and number of starts set to *25*.
+Name the result **emp_kmeans**.
+Examine the centroids and size of each resulting cluster.
+Apply **fviz_cluster()** to visualize the solution on the first two principal components.
+
+**Question 3.1**: What is the centroid for the *fourth* cluster on **workaholism**?
+What is the size of the *seventh* cluster?
+Examining the plot, to which cluster does observation *414* belong?
+
+**Response 3.1**: *Centroid for the fourth cluster: 2.674516. Size of the seventh cluster: 101. Observation 414 belongs to cluster 8*.
+
+Use **fviz_nbclust** and set method to **wss** to determine the optimal number of clusters.
+Use **fviz_nbclust** and set method to **silhouette** to determine the optimal number of clusters.
+Use **clusGap()** on **emp_att_num** setting **K.max** to *15* and **B** to *100* and naming the result of **emp_kmeans_gap**.
+Ignore any warning messages.
+Use **fviz_gap_stat** on **emp_kmeans_gap** to determine the optimal number of clusters.
+
+**Question 3.2**: What is the optimal number of clusters when examining the total within sum of square?
+What is the optimal number of clusters when examining the average silhouette width?
+What is the optimal number of clusters when examining the gap statistic?
+
+**Response 3.2**: *WSS: 4. Average silhouette: 2. Gap: 6*.
+
+Apply the K-means clustering algorithm again on **emp_num_att** this time using *6* clusters while keeping the number of starts to *25*.
+Overwrite the previous **emp_kmeans** result with the new result.
+Plot the average values on the original variables of the *6* clusters referencing the correct part of the output of **emp_kmeans**.
+The plot should be a bar plot of each cluster on the x-axis.
+The height of the bars should represent the average value on each of the original variables.
+Apply a facet wrap using the original variables.
+See the lecture script.
+
+**Question 3.3**: Which cluster has the highest average **burnout**?
+Which cluster has the highest average **depression**?
+
+**Response 3.3**: *Cluster 6 has the highest average burnout. Cluster 1 has the highest average depression*.
+
+```{r, task3}
+#### Q3.1
+### k-means clustering
+## set seed
+set.seed(27)
+## run clustering
+emp_kmeans <- kmeans(emp_att_num, 
+                     # number of clusters
+                     centers = 8, 
+                     # number of random sets
+                     nstart = 25)
+
+
+## examine centroids
+emp_kmeans$centers
+
+## cluster size
+emp_kmeans$size
+
+### visualize results 
+## use first two principal components of original variables
+fviz_cluster(emp_kmeans, data = emp_att_num)
+
+#### Q3.2
+### choosing the number of clusters
+## total within-cluster sum of squares
+fviz_nbclust(emp_att_num, kmeans, method = "wss")
+
+## average silhouette method
+fviz_nbclust(emp_att_num, kmeans, method = "silhouette")
+
+## gap statistic
+# estimate statistic
+emp_kmeans_gap <- clusGap(emp_att_num, kmeans, nstart = 25,
+                          K.max = 15, B = 100)
+
+# plot 
+fviz_gap_stat(emp_kmeans_gap)
+
+#### Q3.3
+## run clustering
+emp_kmeans <- kmeans(emp_att_num, 
+                     # number of clusters
+                     centers = 6, 
+                     # number of random sets
+                     nstart = 25)
+## call data
+emp_kmeans$centers %>%
+  ## convert to tibble
+  as_tibble() %>%
+  ## add cluster variable
+  rowid_to_column(var = "kmeans_clust") %>%
+  ## pivot longer
+  pivot_longer(cols = -kmeans_clust, names_to = "var", values_to = "value") %>%
+  ## mutate
+  mutate(kmeans_clust = as_factor(kmeans_clust)) %>%
+  ## ggplot
+  ggplot(aes(x = kmeans_clust, y = value, fill = kmeans_clust)) +
+    ## bar plot
+    geom_col() +
+    ## facet wrap
+    facet_wrap(~var, scales = "free_y") +
+    ## labels
+    labs(y = "Average Value", fill = "Cluster") +
+    ## change legend position and remove x-axis label
+    theme(legend.position = "bottom",
+          axis.title.x = element_blank())
+
+
+```
+
+## Task 4: Partitioning Around Medoids
+
+Create a new data object named **emp_att_mix** consisting of the following mixed variables: **burnout**, **job_stress**,  **workaholism**, **anxiety**, **perfectionism**, **engagement**, **depression**, **useNowFlextime**, **married**, **partner_employment**, and **gender**.
+Compute the Gower distance matrix based on **emp_att_mix** and name the result **emp_dist_mix**.
+Apply **summary()** to **emp_dist_mix**.
+
+**Question 4.1**: What is the median dissimilarity?
+
+**Response 4.1**: *0.2491*.
+
+Apply **pam()** to **emp_dist_mix** to determine the optimal number of clusters from *2* to *20* by calculating the average silhouette width for each cluster quantity.
+Name the result **emp_pam_sil**.
+Plot the average silhouette widths for the cluster quantities.
+
+**Question 4.2**: How many clusters is optimal based on this plot?
+
+**Response 4.2**: *7*.
+
+Apply **pam()** to **emp_dist_mix** with *5* clusters.
+Name the result **emp_pam**.
+Then, create two plots.
+First, for the numeric variables, plot the average values on the original variables of the *5* clusters referencing the correct part of the output of **emp_pam**.
+The plot should be a bar plot of each cluster on the x-axis.
+The height of the bars should represent the average value on each of the original variables.
+Apply a facet wrap using the original variables.
+Second, for the factor variables, plot the percentage values on the original variables of the *5* clusters referencing the correct part of the output of **emp_pam**.
+Use a facet grid with the factor variables in the columns and clusters in the rows.
+The x-axis should represent the levels of the factors.
+The y-axis should represent percentage of individuals in each level of the factor variable for a particular cluster.
+See the lecture script.
+
+**Question 4.3**: Which cluster has the lowest average **perfectionism**?
+Which two clusters consisted of *100%* unmarried employees?
+Which cluster consisted of *100%* of employees with employed partners?
+
+**Response 4.3**: *Cluster 4 has the lowest average perfectionism. Clusters 3 and 5 consist of 100% of unmarried employees. Clusters 2 and 4 consist of 100% of employees with employed partners*.
+
+Set the random seed to *57* with **set.seed(57)**.
+Then, apply **Rtsne()** to **emp_dist_mix** and save the result as **tsne_mix**.
+Plot the clusters from **emp_pam** on the resulting two-dimensional solution in **tsne_mix**.
+
+**Question 4.4**: Overall, do the clusters look separated in the two-dimensional space?
+Which clusters mix data points?
+
+**Response 4.4**: *The clusters look separated. Clusters 4 and 5 mix data points, as well as the following clusters: 3 and 5, 1 and 2, 1 and 4, 2 and 4*.
+
+```{r, task4}
+#### Q4.1
+### mixed variables data object
+## create data object
+emp_att_mix <- emp_att_data %>%
+  ## select variables of choice
+         # numeric variables
+  select(burnout, job_stress, workaholism, anxiety, perfectionism, engagement, depression,
+         # factor variables
+         useNowFlextime, married, partner_employment, gender)
+
+### distance between employees on set of variables
+## calculate Gower distance
+emp_dist_mix <- daisy(emp_att_mix, metric = "gower")
+
+# summary
+summary(emp_dist_mix)
+
+#### Q4.2
+### pam clustering
+### choosing the number of clusters
+## iterate over different number of clusters
+emp_pam_sil <- map_dbl(2:20, function(.x) {
+    # run pam for each cluster size
+    fit <- pam(emp_dist_mix, diss = TRUE, k = .x)
+    # extract average silhouette width
+    fit$silinfo$avg.width
+  })
+
+## call data
+emp_pam_sil %>%
+  ## convert to tibble
+  as_tibble() %>%
+  ## add number of clusters
+  mutate(clus_size = 2:20) %>%
+  ## plot
+  ggplot(aes(x = clus_size, y = value)) +
+    ## line geometry
+    geom_line()
+
+#### Q4.3
+### pam clustering
+## run clustering
+emp_pam <- pam(emp_dist_mix, 
+               # use dissimilarity matrix
+               diss = TRUE, 
+               # number of clusters
+               k = 5)
+
+### plot numeric variables against clusters
+## call data
+emp_att_mix %>%
+  ## select numeric
+  select_if(is.numeric) %>%
+  ## add cluster variable
+  mutate(pam_clust = as_factor(emp_pam$clustering)) %>%
+  ## group by cluster
+  group_by(pam_clust) %>%
+  ## summarize
+  summarize_all(list(~mean(.))) %>%
+  ## pivot longer
+  pivot_longer(cols = -pam_clust, names_to = "var", values_to = "value") %>%
+  ## ggplot
+  ggplot(aes(x = pam_clust, y = value, fill = pam_clust)) +
+    ## bar plot
+    geom_col() +
+    ## facet wrap
+    facet_wrap(~var, scales = "free_y") +
+    ## labels
+    labs(y = "Average Value", fill = "Cluster") +
+    ## change legend position and remove x-axis label
+    theme(legend.position = "bottom",
+          axis.title.x = element_blank())
+
+### plot factors against clusters
+## call data
+emp_att_mix %>%
+  ## select factors
+  select_if(is.factor) %>% 
+  ## add cluster variable
+  mutate(pam_clust = as_factor(emp_pam$clustering)) %>%
+  ## pivot longer
+  pivot_longer(cols = -pam_clust, names_to = "var", values_to = "value") %>% 
+  ## count
+  count(pam_clust, var, value) %>% 
+  ## group by
+  group_by(pam_clust, var) %>%
+  ## mutate
+  mutate(pct = n/sum(n)) %>%
+  ## ggplot
+  ggplot(aes(x = value, y = pct, 
+             fill = pam_clust)) +
+    ## bar plot
+    geom_col() +
+    ## facet wrap
+    facet_grid(pam_clust ~ var, scales = "free_x") +
+    ## y-axis
+    scale_y_continuous(labels = scales::percent_format()) +
+    ## labels
+    labs(y = "Count", fill = "Cluster") +
+    ## change legend position and remove x-axis label 
+    theme(legend.position = "none",
+          axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1))
+
+## set seed
+set.seed(57)
+### visualize results
+## use t-distributed stochastic neighborhood embedding
+tsne_mix <- Rtsne(emp_dist_mix, is_distance = TRUE)
+
+## extract locations
+tsne_mix$Y %>%
+  ## convert to tibble
+  as_tibble(.name_repair = "minimal") %>%
+  ## set names
+  setNames(c("X", "Y")) %>%
+  ## mutate
+  mutate(pam_clust = as_factor(emp_pam$clustering)) %>%
+  ## plot
+  ggplot(aes(x = X, y = Y, color = pam_clust)) +
+    ## point geometry
+    geom_point()
+
+
+
+```

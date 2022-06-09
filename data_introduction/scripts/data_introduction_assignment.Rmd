@@ -1,0 +1,390 @@
+---
+title: "Assignment: Introduction to People Analytics with R"
+author: "Dunja Novaković"
+date: "2021-07-19"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Instructions
+
+This first assignment reviews my *Introduction to Data* analytical lecture. 
+You will use the *data_introduction.Rmd* file I reviewed in the video lectures to complete this assignment. 
+You will *copy and paste* relevant code from that file and update it to answer the questions in this assignment. 
+You will respond to questions in each section after executing relevant code to answer a question. 
+You will submit this assignment to its *Submissions* folder on *D2L*.
+You will submit:
+
+1. this completed **R Markdown** script, and 
+2. a _HTML_ rendered version of it to _D2L_.
+
+To start:
+
+First, create a folder on your computer to save all relevant files for this assignment. 
+Most likely, you will want to create a folder named *MGT 591* that contains all of the materials for this course.
+
+Second, inside of *MGT 591*, you will create a folder to host assignments.
+You can name that folder *Assignments*.
+
+Third, inside of *Assignments*, you will create folders for each assignment.
+The folder for this first assignment you can name *data_introduction*.
+
+Fourth, create three additional folders in *data_introduction* named *scripts*, *data*, and *plots*.
+Store this script in the *scripts* folder, the data for this assignment in the *data* folder, and any requested plots from this assignment in the *plots* folder.
+
+Fifth, go to the *File* menu in *RStudio*, select *New Project...*, choose *Existing Directory*, go to your *~/MGT 591/Assignments/data_introduction* folder to select it as the top-level directory for this **R Project**.  
+
+## Global Settings
+
+The first code chunk sets the global settings for the remaining code chunks in the document.
+Do *not* change anything in this code chunk.
+
+```{r, setup, include=FALSE}
+### specify echo setting for all code chunks
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+
+In this code chunk, we load three packages we need for this assignment:
+
+1. **here**,
+2. **tidyverse**, and
+3. **haven**. 
+
+We will use functions from these packages to examine the data, calculate summaries, and create visualizations. 
+Do *not* change anything in this code chunk.
+
+```{r, libraries, message=FALSE}
+### load libaries for use in current working session
+## library "here" for workflow
+library(here)
+
+## tidyverse for data manipulation and plotting
+# loads eight different libraries simultaneously
+library(tidyverse)
+
+## haven to import SPSS data
+library(haven)
+```
+
+## Task 1: Load Data
+
+As your first task for this assignment, you need to load the data of interest for the assignment.
+We will use the same data as in the analytical lecture: **diversity_ind.sav**.
+After you load the data, then you will execute other commands on the data.
+
+Use the **read_spss** function from the **haven** package and the **here** function from the **here** package to load the data for this working session. 
+Save the data as the object **div_orig_data**. 
+
+**Question 1.1**: After you load the data, look at your *Global Environment* window. 
+How many observations and variables exist in the data?
+
+**Response 1.1**: *1,493 observations and 11 variables*.
+
+**Question 1.2**: Use the **glimpse** function to view a preview of values for each variable in the data. 
+Which variable is listed last?
+
+**Response 1.2**: *leaver*.
+
+```{r, task1}
+#### Q1.1
+### import data file
+## use here() to locate file in our project directory;
+## use read_spss to import the SPSS data file
+div_orig_data <- read_spss(here("data", "diversity_ind.sav"))
+#### Q1.2
+### examine original data
+## using glimpse() from tibble
+glimpse(div_orig_data)
+```
+
+## Task 2: Clean Data
+
+For your second task, you will clean the data.
+First, use the **as_factor** function on the original data to change all labelled variables to factors. 
+Save the result as a new data object named: **div_work_data**.
+Second, use the **zap_formats** function to eliminate *SPSS* formatting from the variables.
+
+**Question 2.1**: Apply **glimpse** to **div_work_data** to preview the working data. 
+How many factor variables (indicated by *fct*) now exist in the data?
+
+**Response 2.1**: *5*.
+
+Next, in **div_work_data**, convert the: 
+
+1. **Division** and **Country** variables to nominal factors, and
+2. **PerformanceScore** and **BossPerformance** variables to ordered factors.
+
+**Question 2.2**: After this conversion, apply **glimpse** to **div_work_data** to preview the working data. 
+How many *nominal* (indicated by *fct*) and ordered (indicated by *ord*) factor variables now exist in the data?  How many *numeric* (indicated by *dbl*) now exist in the data? 
+
+**Response 2.2**: *Nominal: 7, Ordered: 2, Numeric: 2*.
+
+Use this code inside of the double asterisks: **table(div_work_data$Status)**. 
+Look at the result.
+
+**Question 2.3**: How many values of the factor level named *maternity* exist?
+
+**Response 2.3**: *29*.
+
+Notice, the ambiguously named factor level *2*. 
+Recode this factor level to **NULL**.
+After recoding the factor level, execute **table(div_work_data$Status)** again.
+
+**Question 2.4**: How many factor levels now exist for the factor variable **Status**?
+
+**Response 2.4**: *4*.
+
+Lastly, use **div_work_data** and the **select** and **slice** functions to view the variables **Status** and **Division** for employees in rows **121:125** and **1301:1305**. 
+
+**Question 2.5**: Among these 10 employees, how many are active?  How many of them are in division 10?
+
+**Response 2.5**: *Active: 5. In division 10: 3*.
+
+```{r, task2}
+#### Q2.1
+### create new data object from original data object;
+### use as_factor() from forcats to create 
+### factor variables from labels
+div_work_data <- as_factor(div_orig_data)
+
+### use zap_formats from haven
+### to remove SPSS variable formatting
+div_work_data <- zap_formats(div_work_data)
+
+### examine working data
+## using glimpse()
+glimpse(div_work_data)
+
+#### Q2.2
+### convert specific numeric variables to factors;
+### we introduce the pipe operator: %>%
+## overwrite existing data
+div_work_data <- div_work_data %>%
+  ## mutate particular variables to nominal factors
+            # select variables with vars()
+  mutate_at(vars(Division,
+                 Country),
+            # specify function to convert to nominal factors
+            as_factor) %>%
+  ## mutate particular variables to ordered factors
+            # select variables with vars()
+  mutate_at(vars(PerformanceScore,
+                 BossPerformance),
+            # specify function to convert to ordered factors
+            factor, ordered = TRUE)
+
+### examine working data
+## using glimpse()
+glimpse(div_work_data)
+
+#### Q2.3
+#examine Status
+table(div_work_data$Status)
+
+#### Q2.4
+### make correction to variable;
+### set factor level "2" of Status to NA 
+## overwrite data
+div_work_data <- div_work_data %>%
+  ## mutate variable
+  mutate(Status = fct_recode(Status, NULL = "2"))
+#examine Status
+table(div_work_data$Status)
+
+#### Q2.5
+## using dplyr methods to view specific variables and rows
+# choose data
+div_work_data %>%
+  # select variables
+  select(Status, Division) %>%
+  # slice rows
+  slice(121:125, 1301:1305)
+
+```
+
+## Task 3: Summarize and Visualize Categorical Variables 
+
+For this task, you will examine the **BossGender** and **Gender** variables in the **div_work_data** data object.
+
+Use **div_work_data** and apply the **count** function on **BossGender**.
+
+**Question 3.1**: How many female bosses exist in the data?
+
+**Response 3.1**: *470*.
+
+Use **ggplot** on **div_work_data** to show a percentage  bar graph of **BossGender** to display the percentage of male and female bosses in the data. 
+Make a horizontal percentage bar graph like in the analytical lecture.
+
+**Question 3.2**: Approximately, what percentage of female bosses exist in the data?
+
+**Response 3.2**: *Approx. 31%*.
+
+Use **xtabs** to cross-tabulate **BossGender** and **Gender**.
+
+**Question 3.3**: For how many male employees are their bosses female?
+
+**Response 3.3**: *169*.
+
+Use **ggplot** to plot the percentage of male and females employees with a male or female boss.
+Copy relevant code from the analytical lecture as a start.
+
+For the **data** input inside **ggplot**, filter for employees with only non-missing values on **Gender** (i.e., employee gender).
+You will see exactly what you need in the analytical lecture.
+
+Place **BossGender** (i.e., boss gender) on the x-axis. 
+Set the **group** and **fill** aesthetics to **Gender**. 
+Use the following title for the plot: *Percentage of Female and Male Bosses for Each Employee Gender*.
+
+**Question 3.4**: What percentage of male employees have a female boss?
+What percentage of female employees have a male boss?
+
+**Response 3.4**: *Percentage of male employees with a female boss: 22.7%. Percentage of female employees with a male boss: 59.8%*.
+
+```{r, task3}
+#### Q3.1
+### count values of a single categorical variable
+## choose data
+div_work_data %>%
+  ## count variable
+  count(BossGender)
+
+#### Q3.2
+### plot single categorical variable
+## choose data and mapping
+ggplot(data = div_work_data, mapping = aes(y = BossGender)) +
+  ## choose geometry with proportion calculation
+  geom_bar(aes(x = ..prop.., group = 1)) +
+  ## label axes
+  labs(y = "Boss Gender", x = "Percentage") +
+  ## change format of x-axis
+  scale_x_continuous(labels = scales::percent_format())
+
+#### Q3.3
+### cross-tabulate multiple categorical variables
+## specify formula input with variables from data
+xtabs(~ BossGender + Gender, data = div_work_data)
+
+#### Q3.4
+### plot multiple categorical variables;
+## choose data
+ggplot(data = div_work_data %>%
+         # filter for only non-missing values
+         filter(!is.na(Gender)),
+       ## specify mapping
+       mapping = aes(x = BossGender, 
+                     group = Gender, 
+                     fill = Gender)) +
+  ## choose geometry with proportion calculation
+  geom_bar(aes(y = ..prop..),
+           position = "dodge") +
+  ## label mappings
+  labs(x = "Boss Gender", y = "Percentage", fill = "Gender") +
+  ## change format of y-axis
+  scale_y_continuous(labels = scales::percent_format()) +
+  ## add text above bars
+            # stat for geometry
+  geom_text(stat = "count", 
+                # location of label
+            aes(y = ..prop..,
+                # label and number of digits
+                label = scales::percent(..prop.., accuracy = 0.1)), 
+            # justify vertically above bar
+            vjust = -0.5, 
+            # position label above each bar
+            position = position_dodge(0.9), size = 2) +
+  ## change angle of x-axis labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ## add descriptive title
+  ggtitle("Percentage of Female and Male Bosses for Each Employee Gender")
+```
+
+## Task 4: Summarize and Visualize Continuous and Categorical Variables
+
+For this task, you will examine the **BossGender**, **Gender**, and **Tenure** variables in the **div_work_data** data object.
+
+Copy the relevant code from the analytical lecture to mutate **Tenure** into a new ordered factor variable. 
+You will need to exchange **JobGrade** for **BossGender** in the copied code.
+Save the result in an object named **ten_prop** just like we did in the analytical lecture.
+In this code, you compute the count of employees with a particular gender (i.e., male or female), a particular boss gender (i.e., male or female), and a particular range of tenure (i.e., 0-5, 6-10, 11-20, 21+).
+Once you create **ten_prop**, highlight it and execute to print the result.
+
+**Question 4.1**: How many male employees with 11-20 years of tenure have a female boss?
+What proportion of female employees with 6-10 years of tenure have a male boss?
+
+**Response 4.1**: *Number of male employees that fit the criteria:  26. Proportion of female employees that fit the criteria: 0.664*.
+
+Using **ten_prop**, create a **ggplot** of **tenure_group**, **Gender**, and **BossGender**.
+Start by copy the relevant code from the analytical lecture.
+Name the plot **emp_gen_ten_boss_gen_plot**.
+Exchange **JobGrade** for **BossGender** in the **group** and **color** aesthetics.
+Change the title to: *Boss Gender Proportion for Each Employee Gender and Range of Tenure*.
+Print the plot once created.
+Save the plot to your *plots* folder in your project directory using **ggsave**.
+Name the plot: *emp_gen_ten_boss_gen.png*.
+
+**Question 4.2**: Approximately, what percentage of female employees with 21+ years of tenure have a male boss?
+Approximately, what percentage of male employees with 6-10 years of tenure have a female boss?
+
+**Response 4.2**: *Approx. 63%. Approx. 27%*.
+
+```{r, task4}
+#### Q4.1
+### compute Tenure proportion as a function of BossGender
+## compute data
+ten_prop <- div_work_data %>%
+  ## create grouped Tenure variable
+  mutate(tenure_group = factor(case_when(
+    Tenure <= 5 ~ "0-5",
+    Tenure > 5 & Tenure <= 10 ~ "6-10",
+    Tenure > 10 & Tenure <= 20 ~ "11-20",
+    Tenure >= 21 ~ "21+"
+  ), ordered = TRUE)) %>% 
+  ## reorder factor
+  mutate(tenure_group = fct_relevel(tenure_group, 
+                                    "6-10", after = 1)) %>%
+  ## filter for complete values of Gender
+  filter(!is.na(Gender)) %>%
+  ## count Tenure and BossGender
+  count(tenure_group, BossGender, Gender) %>%
+  ## group by tenure_group and Gender
+  group_by(tenure_group, Gender) %>%
+  ## compute proportion
+  mutate(prop = n / sum(n)) %>%
+  ## ungroup
+  ungroup()
+
+#### Q4.2
+### scatterplot of two continuous variables
+## save plot; choose data
+emp_gen_ten_boss_gen_plot <- ggplot(ten_prop, 
+        # mapping x, y, and group                  
+        aes(x = tenure_group, y = prop, group = BossGender,
+        # reorder factor
+        color = fct_reorder2(BossGender, tenure_group, prop))) +
+  ## point geometry
+  geom_line(size = 2) +
+  ## facet wrap Gender
+  facet_wrap(vars(Gender), nrow = 1) +
+  ## labels
+  labs(x = "Tenure", y = "Proportion", color = "Boss Gender") +
+  ## change colors
+  scale_color_brewer(palette = "Dark2") +
+  ## title
+  ggtitle("Gender Job Grade Proportion for Each Range of Tenure")
+
+## print plot
+emp_gen_ten_boss_gen_plot
+
+### Save plots to folder in project directory
+## Save a single plot to a file
+ggsave(here("plots", "emp_gen_ten_boss_gen.png"), plot = emp_gen_ten_boss_gen_plot,
+       units = "in", width = 9, height = 5)
+
+```

@@ -1,0 +1,126 @@
+---
+title: "Flexdashboards for Communication"
+output:
+  flexdashboard::flex_dashboard:
+    source_code: embed
+    orientation: columns
+    vertical_layout: scroll
+    theme: paper
+---
+
+```{r, libraries, include=FALSE}
+### tidyverse for data wrangling and visualization
+library(tidyverse)
+
+### here to navigate project directory
+library(here)
+
+### flexdashboard to build dashboards in R Markdown
+library(flexdashboard)
+
+### plotly for web-friendly, interactive plots
+library(plotly)
+
+### DT for web-friendly, interactive tables
+library(DT)
+
+### rpart for decision trees
+library(rpart)
+```
+
+```{r, data, include=FALSE}
+### import a space delimited data file
+## import data
+emp_data <- read_delim(here("data", "emp.dat"), delim = " ",
+                       ## column types
+                       col_types = "dfffffddddd")
+
+### sample data
+emp_samp <- emp_data %>%
+  ## sample
+  sample_n(1500)
+```
+
+Plot 1 {data-navmenu=Plots}
+================
+
+Column
+-----------------------------------------------------------------------
+
+### Department by Salary Percentages
+
+```{r, depSalPerc}
+### calculate statistics
+## call data
+dep_sal_perc <- emp_samp %>%
+  ## group by two variables
+  group_by(department, salary) %>%
+  ## count
+  count() %>%
+  ## group by one variable
+  group_by(department) %>%
+  ## calculate percentage
+  mutate(pct = round(n/sum(n), digits = 3)) %>%
+  ## ungroup
+  ungroup() %>%
+  ## reorder department
+  mutate(department = fct_rev(fct_reorder2(department, salary, pct)))
+
+### Produce plot
+## call plot
+dep_sal_perc_plot <- ggplot(dep_sal_perc,
+                      aes(x = department, y = pct, fill = salary)) +
+  ## bar geometry
+  geom_bar(position = "fill", stat = "identity") +
+  ## text geometry
+  geom_text(aes(label = paste0(pct*100, "%")), size = 3,
+    position = position_stack(vjust = 0.5), color = "white") +
+  ## y-axis
+  scale_y_continuous(labels = scales::percent_format()) +
+  ## aesthetic labels
+  labs(x = "Department", y = "Percentage", fill = "Salary") +
+  ## flip coordinates
+  coord_flip() 
+
+## create web-friendly, interactive plot
+ggplotly(dep_sal_perc_plot) %>%
+  ## legend orientation and title
+  layout(legend = list(orientation = "h", x = 0.4, y = -0.2, 
+                       title = list(text = "Salary")))
+```
+
+> This shows the percentage of employees in each department at each salary level with an interactive plot. 
+
+Plot 2 {data-navmenu=Plots}
+================
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### Performance Density by Turnover and Department
+
+```{r, perfDens}
+### plot data
+## density distributions for performance
+# call data and set aesthetics
+ggplot(emp_samp, aes(x = last_evaluation, fill = left)) +
+  # density geometry
+  geom_density(alpha = 0.5) +
+  # facet by boss and employee gender
+  facet_wrap(~ department) +
+  # aesthetic labels
+  labs(x = "Performance", y = "Density", fill = "Turnover") 
+```
+
+### Hexagonal Heatmap of Job Satisfaction and Performance
+
+```{r, jobSatPerf}
+### plot data
+## density distributions for performance
+# call data and set aesthetics
+ggplot(emp_samp, aes(x = job_sat, y = last_evaluation)) +
+  # hex geometry
+  geom_hex(bins = 20) +
+  # aesthetic labels
+  labs(x = "Job Satisfaction", y = "Performance") 
+```

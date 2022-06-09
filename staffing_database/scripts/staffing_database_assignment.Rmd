@@ -1,0 +1,521 @@
+---
+title: "Assignment: Staffing Database"
+author: "Dunja Novaković"
+date: "2020-07-21"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Instructions
+
+This assignment reviews the *Staffing Database* analytical lecture. 
+You will use the *staffing_database.Rmd* file I reviewed in the video lectures to complete this assignment. 
+You will *copy and paste* relevant code from that file and update it to answer the questions in this assignment. 
+You will respond to questions in each section after executing relevant code to answer a question. 
+You will submit this assignment to its *Submissions* folder on *D2L*.
+You will submit this *(1)* completed **R Markdown** script and *(2)* a _HTML_ or _PDF_ rendered version of it to _D2L_ by the due date and time.
+If you installed `TinyTeX` successfully, then I prefer a *PDF* version.
+
+To start:
+
+For any analytical project, you want to create a clear project directory structure.  
+All materials from this course should exist in one folder on your computer.
+Inside of that main course folder, you should create folders to store course documentation, lecture analytical projects, assignments analytical projects, etc. 
+Inside of your folder for assignments analytical projects, you should create folder for this assignment named *staffing_database*.
+
+Any analytical project folder should contain inside it at least three additional folders named *scripts*, *data*, and *plots*.
+Store this script in the *scripts* folder, the data for this assignment in the *data* folder, and any requested plots in the *plots* folder.
+Each analytical project should also contain a **.Rproj** file in its top-level directory. 
+Go to the *File* menu in *RStudio*, select *New Project...*, choose *Existing Directory*, go to the folder you created to contain this analytical project. 
+Select it as the top-level directory for this **RStudio Project**.  
+
+## Global Settings
+
+The first code chunk sets the global settings for the remaining code chunks in the document.
+Do *not* change anything in this code chunk.
+
+```{r, setup, include=FALSE}
+### specify echo setting for all code chunks
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Packages
+
+In this code chunk, we load three packages we need for this assignment:
+
+1. **here**,
+2. **tidyverse**,
+3. **DBI**,
+4. **RSQLite**,
+5. **skimr**,
+6. **GGally**,
+7. **qgraph**, and
+8. **plotly**. 
+
+We will use functions from these packages to import the data, examine the data, calculate summaries on the data, and create visualizations from the data. 
+Do *not* change anything in this code chunk.
+
+```{r, libraries, message=FALSE}
+### load libaries for use in current working session
+## here for workflow
+library(here)
+
+## tidyverse for data manipulation and plotting
+# loads eight different libraries simultaneously
+library(tidyverse)
+
+## DBI to work with database
+library(DBI)
+
+## RSQLite to import database
+library(RSQLite) 
+
+## skimr for summary statistics
+library(skimr)
+
+## GGally for plotting
+library(GGally)
+
+## qgraph for network plots
+library(qgraph)
+```
+
+## Task 1: Load Data
+
+As your first task for this assignment, you need to load the data of interest.
+We will use the same database as in the analytical lecture: **staffing_database.sqlite**.
+
+Use the appropriate functions to navigate to your *data* directory and import the database. 
+Import the database as the object **staff_db**.
+Note the difference in the name of **staff_db** from the lecture script.
+List all of the data tables in **staff_db**.
+
+**Question 1.1**: How many data tables are there in the database?  
+
+**Response 1.1**: *7*.
+
+Use *SQL* to query the data table named *cv* in the database and print the first *8* rows.  
+
+**Question 1.2**: Is the employee with *id = 232* a minority? 
+Does this same employee have prior work experience?
+
+**Response 1.2**: *The employee in question is not a minority and doesn't have prior work experience*.
+
+Save each of the data tables in the database as a *tibble* data object.
+Use the same names as in the lecture script.
+Disconnect from the database.
+Use **arrange** on **onboard_data** to sort the data by **id** such that the person with **id** equal to one is listed first. 
+Make sure you print the data.
+
+**Question 1.3**: Out of the first 10 individuals (i.e., individuals with **id** from one to ten),how many did *not* get an *onboarding buddy*?  
+
+**Response 1.3**: *5*.
+
+```{r, task1}
+#### Q1.1
+### import database
+## use here() to locate file in our project directory;
+## use DBI::dbConnect to open connection;
+## RSQLite::SQLite to import this particular database
+staff_db <- dbConnect(SQLite(), here("data", "staffing_database.sqlite"))
+### list all of the data tables
+dbListTables(staff_db)
+
+#### Q1.2
+### extract information from a table with SQL code
+dbGetQuery(staff_db, "SELECT * FROM cv LIMIT 8")
+
+#### Q1.3
+### save database table to tibble object
+## ac
+ac_data <- tbl(staff_db, "ac") %>% as_tibble()
+## cv
+cv_data <- tbl(staff_db, "cv") %>% as_tibble()
+## ids
+ids_data <- tbl(staff_db, "ids") %>% as_tibble()
+## jobs
+jobs_data <- tbl(staff_db, "jobs") %>% as_tibble()
+## managers
+managers_data <- tbl(staff_db, "managers") %>% as_tibble()
+## onboard
+onboard_data <- tbl(staff_db, "onboard") %>% as_tibble()
+## outcomes
+outcomes_data <- tbl(staff_db, "outcomes") %>% as_tibble()
+
+### disconnect from database
+dbDisconnect(staff_db)
+
+### arranging data
+## choose data
+onboard_data %>%
+  ## arrange by id
+  arrange(id)
+```
+
+## Task 2: Joins
+
+For the second task, you will join the various data tables into one complete data object named **staff_join**. 
+Start by joining the following five data tables in one chained (i.e., use the pipe operator to link the joins together) command: 
+
+1. **ids_data**,
+2. **cv_data**,
+3. **ac_data**,
+4. **onboard_data**, and
+5. **outcomes_data**.
+
+**Question 2.1**: After joining these five tables, how many variables are in **staff_join**?
+
+**Response 2.1**: *19*.
+
+Next, join **managers_data** and **jobs_data** to **staff_join**. 
+Rename the **span** and **budget** variables to **mgr_span** and **job_budget** as in the lecture script.
+
+**Question 2.2**: After joining these two tables, how many variables are in **staff_join**?
+
+**Response 2.2**: *21*.
+
+Mutate the variables in **staff_join** as in the lecture script.
+Use **glimpse** on **staff_join** after completing the mutations.
+
+**Question 2.3**: How many total nominal (i.e., *fct*) and ordered (i.e., *ord*) factor variables are there in **staff_join** after the mutations?
+
+**Response 2.3**: *Nominal: 7; Ordered: 2*
+
+```{r, task2}
+#### Q2.1
+### join tables
+staff_join <- ids_data %>%
+  ## join ids with cv
+  left_join(cv_data, by = c("emp_id" = "id"))%>%
+  ## join ac_data
+  left_join(ac_data, by = c("emp_id" = "id")) %>%
+  ## join ac_data
+  left_join(onboard_data, by = c("emp_id" = "id")) %>%
+  ## join ac_data
+  left_join(outcomes_data, by = c("emp_id" = "id"))
+
+#### Q2.2
+### overwrite current joined data
+staff_join <- staff_join %>%
+  # join managers
+  left_join(managers_data, by = c("mgr_id" = "id")) %>%
+  # join jobs
+  left_join(jobs_data, by = c("job" = "unit")) %>%
+  # rename joined variables
+  rename(mgr_span = span, job_budget = budget)
+
+#### Q2.3
+### manipulate character variables to factors 
+## overwrite data
+staff_join <- staff_join %>% 
+  ## select nominal factors
+  mutate_at(vars(job:work_exp, -education, 
+                 InductionDay:OnBoardingBuddy), as_factor) %>%
+  ## select ordered factor
+  mutate_at(vars(education, left), factor, ordered = TRUE) %>%
+  ## recode onboarding factors
+  mutate_at(vars(InductionDay:OnBoardingBuddy), 
+            ~fct_recode(., `No` = "0", `Yes` = "1")) %>%
+  ## recode factor
+  mutate_at(vars(left), 
+            ~fct_recode(., `No` = "0", `One` = "1", `Two` = "2")) %>%
+  ## relevel factor
+  mutate_at(vars(left), ~fct_relevel(., "No", after = 2))
+
+### using glimpse
+glimpse(staff_join)
+```
+
+## Task 3: Data Transformations
+
+For your third task, you will transform **staff_join** to answer questions.
+
+Select **emp_id**, **cog_quant**, and **open** from **staff_join**. 
+Arrange by ascending **cog_quant** and descending **open**.
+
+**Question 3.1**: What employee (i.e., **emp_id**) is listed *first*?
+What is the **open** score for employee with **emp_id** equal to *22*?
+
+**Response 3.1**: *The id of the employee that is listed first is 47. The open score for the employee with emp_id=22 is 57*.
+
+Select **emp_id**, **cog_verb**, **neuro**, and **consc** from **staff_join**. 
+Filter for the *top 15%* of employees on **neuro**.
+Arrange by descending **cog_verb** and ascending **consc**.
+
+**Question 3.2**: What employee (i.e., **emp_id**) is listed *fifth*?
+What is the **consc** score for employee with **emp_id** equal to *19*?
+
+**Response 3.2**: *The id of the employee that is listed fifth is 16. The consc score for the employee with emp_id=19 is 46*.
+
+Select **emp_id**, **education**, and **agree** from **staff_join**. 
+Filter for indvididuals with a **PhD** **education** and **agree** scores greater than *88*.
+
+**Question 3.3**: Which two employees (i.e., **emp_id**) meet the criteria?
+
+**Response 3.3**: *Two employees with emp_ids equal to 33 and 213*.
+
+Select **OnBoardingBuddy**, **gender**, **agree**, and **consc** from **staff_join**. 
+Group by **OnBoardingBuddy** and **gender**.
+Compute the *minimum*, *median*, and *max* for each group.
+Pay attention to appropriately using *commas* and *parentheses*.
+Remove the groups with **ungroup()**.
+Pivot the table longer via **pivot_longer()**.
+Adjust the **cols** input correctly inside of **pivot_longer()**. 
+Print all rows using **print()** setting the **n** input correctly.
+
+**Question 3.4**: What is the median *agreeableness* score for males who had an onboarding buddy? 
+What is the minimum *conscientiousness* score for females who did *not* have an onboarding buddy? 
+
+**Response 3.4**: *46; 26*.
+
+```{r, task3}
+#### Q3.1
+###aranging data
+## choose data
+staff_join %>%
+  ## select variables
+  select(emp_id, cog_quant, open) %>%
+  ## arrange
+  arrange(cog_quant, desc(open))
+
+#### Q3.2
+### arranging data
+## choose data
+staff_join %>%
+  ## select variables
+  select(emp_id, cog_verb, neuro, consc) %>%
+  ## top neuro scores
+  top_frac(0.15, neuro) %>%
+  ## arrange
+  arrange(desc(cog_verb), consc)
+
+#### Q3.3
+### filtering data
+## choose data
+staff_join %>%
+  ## select variables
+  select(emp_id, education, agree) %>%
+  ## filter for PhD education;
+  ## AND agree greater than 88
+  filter(education == "PhD", agree > 88)
+
+#### Q3.4
+### summarizing data
+## choose data
+staff_join %>%
+  ## select variables
+  select(OnBoardingBuddy, gender, agree, consc) %>%
+  ## group by variable
+  group_by(OnBoardingBuddy, gender) %>%
+  ## summarize
+  summarize_all(list(~min(., na.rm = T), 
+                     ~median(., na.rm = T), 
+                     ~max(., na.rm = T))) %>%
+  ## remove grouping
+  ungroup() %>%
+  ## pivot longer
+               # choose columns to make longer
+  pivot_longer(cols = agree_min:consc_max,
+               # new column for names of variables
+               names_to = c("var", "stat"),
+               # create new columns by separator
+               names_sep = "_",
+               # new column for values of variables
+               values_to = "value") %>%
+  ## print all rows
+  print(n = Inf)
+
+```
+
+## Task 4: Descriptive Summaries
+
+For this task, you will compute descriptive summaries on **staff_join**.
+
+Select **education**, **minority**, **gender**, and all *5* personality variables (i.e., **open**, **consc**, **extra**, **agree**, and **neuro**) from **staff_join**.
+Group by **education**.
+Use **skim_without_charts()** to compute summaries for the groups.
+
+**Question 4.1**: How many Master's (i.e., **MSc**) educated employees are *minorities* (i.e., **minority**) in the company?
+What is the average *extraversion* (i.e., **extra**) score employees with a *PhD*?
+
+**Response 4.1**: *40; 65*.
+
+Compute the correlations between **cog_quant**, **cog_verb**, and **perf**. 
+
+**Question 4.2**: What is the correlation between **cog_verb** and **perf**?
+
+**Response 4.2**: *0.3790663*.
+
+Save the following as the object named **dist_vars**:
+First, filter by **job** equals to **Risk** and **minority** equals to **Yes**.
+Second, select all *5* personality variables (i.e., **open**, **consc**, **extra**, **agree**, and **neuro**), **cog_quant**, **cog_verb**, and **perf** from **staff_join**.
+Third, compute the *distance* between selected individuals.
+Fourth, use **round()** to round the distances to two digits.
+Fifth, convert the object to a matrix.
+
+**Question 4.3**: What is the computed distance between the third and sixth individual? 
+Which two indivdiuals are most similar (i.e., least distant, lowest distance score)?
+
+**Response 4.3**: *The computed distance between the third and sixth individual is 80.19. The most similar individuals are the first and second individual (if we exclude distance scores on the main diagonal of the distance matrix)*.
+
+```{r, task4}
+#### Q4.1
+### compute summary statistics
+## filtered group data
+# choose data
+staff_join %>%
+  #select variables
+  select(education, minority, gender, open:neuro)%>%
+  # grouping variable
+  group_by(education) %>%
+  # summary
+  skim_without_charts()
+
+#### Q4.2
+### compute correlations
+## choose data
+staff_join %>%
+  ## select variables
+  select(cog_quant, cog_verb, perf)%>%
+  ## compute correlations
+  cor(use = "pairwise")
+
+#### Q4.3
+### compute distances
+## choose data
+dist_vars <- staff_join %>%
+  ## filter for Risk with minority employees
+  filter(job == "Risk", minority == "Yes") %>%
+  ## select variables
+  select(open:neuro, cog_quant, cog_verb, perf) %>%
+  ## compute distances
+  dist() %>%
+  ## round numbers
+  round(digits = 2) %>%
+  ##convert to matrix
+  as.matrix()
+### print data
+dist_vars
+```
+
+## Task 5: Data Visualization
+
+For this task, you will visualize the data from **staff_join**.
+
+You will make a heatmap using **dist_vars**.
+First, keep only the upper triangle of values in **dist_vars** using the code from the lecture.
+Second, overwrite **dist_vars** to make it a long table instead of square matrix using the code from the lecture.
+Third, produce a heatmap named **heatmap_ggplot** adjusting the heatmap scale so the midpoint is *65* and the maximum is *130*.
+Otherwise, keep the code the same as in the lecture.
+Print the plot.
+Save the plot to your **plots** folder as **heatmap.png**.
+
+**Question 5.1**: Looking at the plot, which two individuals are most distant (i.e., look for the bluest tile) on these variables?
+
+**Response 5.1**: *The most distant individuals are the fourth and fifth one*.
+
+Select **minority**, **education**, **consc**, **cog_quant**, and **perf** from **staff_join**.
+Use **ggpairs()** to produce a scatterplot matrix.
+
+**Question 5.2**: What is the correlation between **consc** and **cog_quant**?
+
+**Response 5.2**: *0.344*.
+
+Compute a new object named **group_means** with the same code from the lecture but change the **skim_variable** to equal **neuro**.
+Next, compute a new object named **dist_means** with the same code from the lecture without any changes.
+Name the rows and columns of **dist_means** with the same code from the lecture.
+Apply **qgraph()** to **dist_means** just like the code from the lecture.
+
+**Question 5.3**: Looking at the plot, which two jobs have the highest mean difference (i.e., thickest green line) on **neuro**?
+
+**Response 5.3**: *Finance and Sales*.
+
+```{r, task5}
+#### Q5.1
+### keep only upper triangle
+## overwrite data
+dist_vars[lower.tri(dist_vars)] <- NA
+
+### pivot data
+## overwrite data
+dist_vars <- dist_vars %>%
+  ## convert to tibble
+  as_tibble() %>%
+  ## add row names
+  rownames_to_column("Ind_1") %>%
+  ## pivot longer
+  pivot_longer(cols = -Ind_1, names_to = "Ind_2", values_to = "value") %>%
+  ## mutate value
+  mutate(value = max(value, na.rm = TRUE) - value + 0.01) %>%
+  ## mutate character to factor
+  mutate_if(is_character, as_factor)
+
+### make plot
+## set data and mapping
+heatmap_ggplot <- ggplot(dist_vars, aes(x = Ind_2, y = Ind_1, fill = value)) +
+  ## tile geometry
+  geom_tile(color = "white") +
+  ## color the tiles
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white",
+                       midpoint = 65, limit = c(0, 130), 
+                       space = "Lab", name = "Closeness",
+                       na.value = "transparent") +
+  ## text geometry
+  geom_text(aes(label = value), color = "black", size = 2) +
+  ## white background
+  theme_minimal() + 
+  ## axes labels
+  labs(x = "Individual", y = "Individual") + 
+  ## title of plot
+  ggtitle("Closeness of Individuals") + 
+  ## position of title
+  theme(plot.title = element_text(hjust = 0.5))
+
+## print heatmap
+heatmap_ggplot
+
+## save heatmap
+ggsave(here("plots", "heatmap.png"), 
+       # specify plot to save
+       plot = heatmap_ggplot,
+       # specify units
+       units = "in", width = 9, height = 5)
+
+#### Q5.2
+### choose data
+staff_join %>%
+  ## select variables
+  select(minority, education, consc, cog_quant, perf) %>%
+  ## scatterplot matrix
+  ggpairs()
+
+#### Q5.3
+### distances between groups
+## choose data
+group_means <- staff_join %>%
+  ## grouping variable
+  group_by(job) %>%
+  ## summary
+  skim() %>%
+  ## filter
+  filter(skim_variable == "neuro") %>%
+  ## select
+  select(job, numeric.mean)
+## compute distance matrix
+dist_means <- group_means %>%
+  ## select means variable
+  select(numeric.mean) %>%
+  ## compute distance
+  dist(method = "manhattan") %>%
+  ## convert to matrix
+  as.matrix()
+## name columns
+colnames(dist_means) <- row.names(dist_means) <- group_means$job
+## plot
+qgraph(dist_means, layout = "spring")
+```
